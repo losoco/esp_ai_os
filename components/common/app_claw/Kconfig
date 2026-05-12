@@ -303,6 +303,12 @@ menu "App Claw Config"
                 Enable the Fuel Gauge Lua module and keep app_claw's direct dependency
                 on lua_module_fuel_gauge when Lua capability is enabled.
 
+        config APP_CLAW_LUA_MODULE_IMAGE
+            bool "Enable image Lua module"
+            default y
+            help
+                Enable the image Lua module. Exposes frame format conversion helpers.
+
         config APP_CLAW_LUA_MODULE_IMU
             bool "Enable IMU Lua module"
             default n
