@@ -21,9 +21,9 @@
 #if CONFIG_APP_CLAW_CAP_SESSION_MGR
 #include "cap_session_mgr.h"
 #endif
+#include "claw_paths.h"
 #if CONFIG_APP_CLAW_CAP_CORE
 #include "claw_core.h"
-#include "claw_paths.h"
 #include "claw_agent_mgr.h"
 #endif
 #if CONFIG_APP_CLAW_CAP_EVENT_ROUTER
@@ -86,7 +86,11 @@ static bool app_claw_bool_is_true(const char *value)
 
 claw_core_handle_t app_claw_get_core(void)
 {
+#if CONFIG_APP_CLAW_CAP_CORE
     return claw_agent_mgr_get_root_core();
+#else
+    return NULL;
+#endif
 }
 
 #if CONFIG_APP_CLAW_CAP_SESSION_MGR && (CONFIG_APP_CLAW_CAP_MEMORY || CONFIG_APP_CLAW_CAP_SKILL_MGR)

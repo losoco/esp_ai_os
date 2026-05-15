@@ -17,10 +17,12 @@ menu "App Claw Config"
 
     choice APP_CLAW_MEMORY_MODE
         prompt "App Claw memory management mode"
+        depends on APP_CLAW_CAP_MEMORY
         default APP_CLAW_MEMORY_MODE_FULL
         help
             Select whether app_claw uses the current structured memory module
             or a lightweight master-compatible memory flow.
+            Only available when claw_memory subsystem is enabled.
 
     config APP_CLAW_MEMORY_MODE_FULL
         bool "Structured memory management"
@@ -192,8 +194,8 @@ menu "App Claw Config"
 
         config APP_CLAW_CAP_AGENT_MGR
             bool "Enable agent manager capability"
-            default y
-            depends on APP_CLAW_CAP_SESSION_MGR
+            default y if APP_CLAW_CAP_SESSION_MGR && APP_CLAW_CAP_CORE
+            default n
             help
                 Enable root-only subagent management tools backed by claw_agent_mgr.
 
