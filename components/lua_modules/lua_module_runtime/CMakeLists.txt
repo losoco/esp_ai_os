@@ -1,0 +1,12 @@
+idf_component_register(
+    SRCS
+        "src/lua_module_runtime.c"
+        "src/runtime_sync.c"
+        "src/runtime_thread.c"
+    INCLUDE_DIRS
+        "src"
+    REQUIRES
+        cap_lua
+        freertos
+        json
+)

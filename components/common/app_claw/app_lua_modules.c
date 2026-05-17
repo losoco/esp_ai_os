@@ -76,6 +76,9 @@
 #if CONFIG_APP_CLAW_LUA_MODULE_IMAGE
 #include "lua_image.h"
 #endif
+#if CONFIG_APP_CLAW_LUA_MODULE_RUNTIME
+#include "lua_module_runtime.h"
+#endif
 #if CONFIG_APP_CLAW_LUA_MODULE_IMU
 #include "lua_module_imu.h"
 #endif
@@ -399,6 +402,14 @@ static esp_err_t app_lua_register_image(const char *fatfs_base_path)
 }
 #endif
 
+#if CONFIG_APP_CLAW_LUA_MODULE_RUNTIME
+static esp_err_t app_lua_register_runtime(const char *fatfs_base_path)
+{
+    (void)fatfs_base_path;
+    return lua_module_runtime_register();
+}
+#endif
+
 #if CONFIG_APP_CLAW_LUA_MODULE_IMU
 static esp_err_t app_lua_register_imu(const char *fatfs_base_path)
 {
@@ -557,6 +568,9 @@ static const app_lua_module_entry_t s_lua_module_entries[] = {
 #if CONFIG_APP_CLAW_LUA_MODULE_IMAGE
     { "image", "Image", app_lua_register_image },
 #endif
+#if CONFIG_APP_CLAW_LUA_MODULE_RUNTIME
+    { "runtime", "Runtime", app_lua_register_runtime },
+#endif
 #if CONFIG_APP_CLAW_LUA_MODULE_IMU
     { "imu", "IMU", app_lua_register_imu },
 #endif
@@ -657,6 +671,9 @@ static const app_lua_module_info_t s_lua_module_infos[] = {
 #endif
 #if CONFIG_APP_CLAW_LUA_MODULE_IMAGE
     { "image", "Image" },
+#endif
+#if CONFIG_APP_CLAW_LUA_MODULE_RUNTIME
+    { "runtime", "Runtime" },
 #endif
 #if CONFIG_APP_CLAW_LUA_MODULE_IMU
     { "imu", "IMU" },
