@@ -729,6 +729,7 @@ static esp_err_t load_registry_dir_recursive(const char *root_dir,
     DIR *dir = NULL;
     struct dirent *item = NULL;
     char *dir_path = NULL;
+    bool has_skill_doc = false;
     esp_err_t err = ESP_OK;
 
     if (!s_skill || !root_dir || !root_dir[0] || !entries || !entry_count) {
@@ -745,6 +746,20 @@ static esp_err_t load_registry_dir_recursive(const char *root_dir,
         free(dir_path);
         return ESP_ERR_NOT_FOUND;
     }
+
+    /* Skills are leaves per claw-skill-spec.md: when this directory already
+     * holds SKILL.md, its content subdirs (scripts/, references/, assets/)
+     * are skill payload, not nested skills. Detect that up front so the loop
+     * below can skip descending into them — this both bounds recursion depth
+     * (which protects the main-task stack) and avoids reading skill payload
+     * files when looking for skill documents. */
+    while ((item = readdir(dir)) != NULL) {
+        if (item->d_name[0] && is_skill_document_file(item->d_name)) {
+            has_skill_doc = true;
+            break;
+        }
+    }
+    rewinddir(dir);
 
     while ((item = readdir(dir)) != NULL) {
         char relative_path[CLAW_SKILL_MAX_PATH] = {0};
@@ -780,6 +795,10 @@ static esp_err_t load_registry_dir_recursive(const char *root_dir,
         }
         if (S_ISDIR(st.st_mode)) {
             free(path);
+            if (has_skill_doc) {
+                /* Don't descend into the current skill's content subtree. */
+                continue;
+            }
             err = load_registry_dir_recursive(root_dir, relative_path, entries, entry_count);
             if (err != ESP_OK) {
                 goto cleanup;
