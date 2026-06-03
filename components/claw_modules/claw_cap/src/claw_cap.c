@@ -12,6 +12,8 @@
 
 #include "cJSON.h"
 #include "esp_log.h"
+#include "esp_attr.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -69,7 +71,7 @@ typedef struct {
     size_t group_capacity;
 } claw_cap_runtime_t;
 
-static claw_cap_runtime_t s_runtime = {0};
+static EXT_RAM_BSS_ATTR claw_cap_runtime_t s_runtime = {0};
 
 static bool claw_cap_is_llm_visible(const claw_cap_descriptor_slot_t *slot,
                                     const char *session_id);
@@ -364,7 +366,9 @@ esp_err_t claw_cap_call_from_core(const char *cap_name,
     }
     *out_output = NULL;
 
-    output = calloc(1, output_size);
+    output = heap_caps_calloc_prefer(1, output_size, 2,
+                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+                                     MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (!output) {
         return ESP_ERR_NO_MEM;
     }
