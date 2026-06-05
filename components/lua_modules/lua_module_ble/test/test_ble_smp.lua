@@ -71,4 +71,4 @@ assert_ok(ble.smp_config({
 }))
 log("final no_io SMP config accepted repeat_pairing=ignore")
 
-log("验证OK")
+log("Test Passed.")

@@ -79,4 +79,4 @@ log("process_events returned after callback deinit processed=" .. tostring(proce
 assert_ok(ble.on_event(nil))
 log("reentrant event callback cleared")
 
-log("验证OK")
+log("Test Passed.")

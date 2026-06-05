@@ -128,8 +128,8 @@ local function run()
     end)
 
     assert(#received_events >= 2, "expected adv_started and adv_stopped events")
-    log("done")
-    log("验证OK")
+
+    log("Test Passed.")
 end
 
 local function cleanup()

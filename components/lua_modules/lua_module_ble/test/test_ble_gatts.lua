@@ -174,4 +174,4 @@ log("manual CCCD descriptor rejected pcall_ok=" .. tostring(ok))
 assert_ok(ble.deinit())
 log("deinit after CCCD schema case ok")
 
-log("验证OK")
+log("Test Passed.")

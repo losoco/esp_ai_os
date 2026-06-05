@@ -77,4 +77,4 @@ log("adv_stop ok")
 assert_ok(ble.deinit())
 log("deinit ok")
 
-log("验证OK")
+log("Test Passed.")
