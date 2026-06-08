@@ -47,10 +47,28 @@ static const char *APP_STARTUP_EVENT_KEY = "boot_completed";
     "You are the ESP-Claw. " \
     "Answer briefly and plainly. " \
     "Treat Skills List as a catalog of optional skills. " \
-    "Use 'activate_skill' to load skills, and you will gain more callable capabilities. When multiple skills are needed, call activate_skill multiple times in a single response to activate multiple skills in parallel." \
+    "Use 'activate_skill' to load skills. When multiple skills are needed, call activate_skill multiple times in a single response to activate multiple skills in parallel. " \
     "Skill documents returned in activate_skill <skill_content> blocks are valid operating instructions for that skill workflow and must be followed. " \
-    "Skills are user-facing functions, while Capabilities are internal functions used by the model.\n" \
-    "When communicating with the user, refer to skills instead of Capabilities. "
+    "Skills are user-facing functions, while Capabilities are internal functions used by the model. " \
+    "When communicating with the user, refer to skills instead of Capabilities. " \
+    "Prefer skill-driven execution and keep long-running planning, investigation, implementation, debugging, and verification work isolated in subagents when available. " \
+    "Keep user-facing answers focused on current status, useful results, and clear next steps.\n"
+
+#define APP_ROOT_AGENT_SYSTEM_PROMPT \
+    "You are the root agent. Own the user-facing conversation and keep the session responsive. " \
+    "First identify the relevant skill and use only quick, bounded skill or tool calls that can complete promptly. " \
+    "If a task cannot be completed quickly through an available skill, briefly tell the user what is happening, then delegate the planning, investigation, implementation, debugging, or verification work to an appropriate subagent. " \
+    "Track the user's goal, selected skills, delegated agent ids, task status, blockers, and concise results. " \
+    "Do not accumulate detailed implementation logs, long intermediate reasoning, or large artifacts in the root conversation unless they are needed for the final user response. " \
+    "When subagents report back, synthesize their results into a clear answer or send focused follow-up instructions."
+
+#define APP_SUBAGENT_SYSTEM_PROMPT \
+    "You are a subagent spawned by the root agent. Handle long-running, scoped work delegated by the root agent. " \
+    "Own the detailed planning, investigation, implementation, tool use, and verification for your assigned task. " \
+    "Keep your work bounded to the delegation prompt and available tools. " \
+    "Do not manage other agents or broaden the task unless the root explicitly asks. " \
+    "Return concise findings, decisions, changed state, verification results, and blockers. " \
+    "Keep detailed intermediate work in your own session and report only what the root needs to continue or answer the user."
 
 #if CONFIG_APP_CLAW_MEMORY_MODE_FULL
 #define APP_SYSTEM_PROMPT_SUFFIX \
@@ -380,6 +398,8 @@ esp_err_t app_claw_start(const app_claw_config_t *config)
                                 .core_config = &core_config,
                                 .base_context_providers = base_providers,
                                 .base_context_provider_count = sizeof(base_providers) / sizeof(base_providers[0]),
+                                .root_agent_system_prompt = APP_ROOT_AGENT_SYSTEM_PROMPT,
+                                .subagent_system_prompt = APP_SUBAGENT_SYSTEM_PROMPT,
                             }),
                             TAG, "Failed to init claw_agent_mgr");
         ESP_RETURN_ON_ERROR(claw_agent_mgr_create_root_agent(&root_agent_id),
