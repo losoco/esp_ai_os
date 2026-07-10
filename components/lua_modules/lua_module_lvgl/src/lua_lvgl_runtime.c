@@ -482,6 +482,9 @@ static int lua_lvgl_init(lua_State *L)
 
     lv_display_set_user_data(display, &s_lvgl);
     lv_display_set_buffers(display, draw_buf, NULL, (uint32_t)draw_buf_size, LV_DISPLAY_RENDER_MODE_PARTIAL);
+#if LV_COLOR_DEPTH == 24
+    lv_display_set_color_format(display, LV_COLOR_FORMAT_RGB888);
+#endif
     lv_display_set_flush_cb(display, lua_lvgl_flush_cb);
     err = lua_lvgl_register_flush_callbacks_locked();
     if (err != ESP_OK) {
