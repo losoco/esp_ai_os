@@ -1,0 +1,83 @@
+version: 1.0.0
+# Peripherals Configuration for Metalio Claw4
+peripherals:
+  # I2C bus (port 1, shared by GT911, TCA9555, BQ27220, QMC6309, NU1680)
+  - name: i2c_master
+    type: i2c
+    role: master
+    config:
+      port: 1
+      pins:
+        sda: 7
+        scl: 8
+
+  # I2S audio output (speaker via BT audio codec)
+  - name: i2s_audio_out
+    type: i2s
+    format: "std-out"
+    role: master
+    config: &i2s_config
+      port: 0
+      sample_rate_hz: 16000
+      clk_src: "I2S_CLK_SRC_DEFAULT"
+      mclk_multiple: 256
+      data_bit_width: 16
+      slot_mode: "I2S_SLOT_MODE_STEREO"
+      slot_mask: "I2S_STD_SLOT_BOTH"
+      ws_width: 16
+      pins:
+        bclk: 12
+        ws: 10
+        dout: 9
+        din: 11
+
+  # I2S audio input (microphone via BT audio codec)
+  - name: i2s_audio_in
+    type: i2s
+    format: "std-in"
+    role: master
+    config: *i2s_config
+
+  # LDO for MIPI DSI PHY power supply
+  - name: ldo_mipi
+    type: ldo
+    config:
+      chan_id: 3
+      voltage_mv: 2500
+      adjustable: 1
+      owned_by_hw: 0
+
+  # MIPI DSI bus configuration
+  - name: dsi_display
+    type: dsi
+    config:
+      bus_id: 0
+      data_lanes: 2
+      phy_clk_src: MIPI_DSI_PHY_CLK_SRC_DEFAULT
+      lane_bit_rate_mbps: 1000
+
+  # Backlight LEDC control (TIMER_0 / CHANNEL_0, 25kHz, 10-bit)
+  - name: ledc_backlight
+    type: ledc
+    version: default
+    config:
+      gpio_num: 52
+      speed_mode: LEDC_LOW_SPEED_MODE
+      channel: 0
+      timer_sel: 0
+      duty: 0
+      freq_hz: 25000
+      duty_resolution: LEDC_TIMER_10_BIT
+
+  # Vibration motor LEDC control (TIMER_1 / CHANNEL_1, 5kHz, 10-bit)
+  - name: ledc_vibration
+    type: ledc
+    version: default
+    config:
+      gpio_num: 22
+      speed_mode: LEDC_LOW_SPEED_MODE
+      channel: 1
+      timer_sel: 1
+      duty: 0
+      freq_hz: 5000
+      duty_resolution: LEDC_TIMER_10_BIT

@@ -1,0 +1,154 @@
+version: 1.0.0
+# Devices Configuration for Metalio Claw4
+devices:
+  # TCA9555 IO Expander (I2C 0x20, 16-bit)
+  # Controls: GPS power, PA switch, camera PWDN, SD power, power key,
+  # BT power, 4G reset, audio PA, and various input pins
+  - name: gpio_expander_tca9555
+    chip: tca9555
+    type: gpio_expander
+    version: default
+    dependencies:
+      espressif/esp_io_expander_tca95xx_16bit:
+        version: "*"
+        require: public
+    config:
+      max_pins: 16
+      # Output pins: P0-0(GPS), P0-1(PA_SWITCH), P0-2(CAM_PWDN), P0-3(SD),
+      #              P0-4(PWR_KEY_PULSE), P0-6(BT_POWER), P0-7(RST_4G), P1-0(PA)
+      output_io_mask: [0, 1, 2, 3, 4, 6, 7, 8]
+      # Initial levels: GPS=on, PA_SWITCH=WiFi, CAM=off, SD=on,
+      #                 PWR_KEY_PULSE=low, BT=on, 4G_RST=released, PA=on
+      output_io_level_mask: [1, 1, 1, 0, 0, 1, 1, 1]
+      # Input pins: P0-5(PWR_KEY), P1-1(ACCEL_INT), P1-2(USB_DET), P1-3(WIRELESS_DET)
+      input_io_mask: [5, 9, 10, 11]
+    peripherals:
+      - name: i2c_master
+        i2c_addr: [0x40]
+
+  # SD Card (SDMMC slot 0, 4-bit bus)
+  # Power controlled by TCA9555 P0-3 (active low = enabled)
+  - name: fs_sdcard
+    type: fs_fat
+    sub_type: sdmmc
+    version: default
+    depends_on: gpio_expander_tca9555
+    config:
+      vfs_config:
+        format_if_mount_failed: false
+        max_files: 5
+      sub_config:
+        slot: SDMMC_HOST_SLOT_0
+        frequency: SDMMC_FREQ_HIGHSPEED
+        bus_width: 4
+        pins:
+          clk: 43
+          cmd: 44
+          d0: 39
+          d1: 40
+          d2: 41
+          d3: 42
+          cd: -1
+          wp: -1
+        ldo_chan_id: -1  # LDO managed by ESP-Hosted (CONFIG_ESP_HOSTED_SD_PWR_CTRL_LDO_INTERNAL_IO)
+
+  # DSI Display (NV3051F, 720x720, MIPI-DSI 2-lane)
+  - name: display_lcd
+    chip: nv3051f
+    type: display_lcd
+    sub_type: dsi
+    depends_on: gpio_expander_tca9555
+    dependencies:
+      esp_lcd_nv3051f:
+        override_path: "${BOARD_PATH}/components/esp_lcd_nv3051f"
+        require: public
+    config:
+      reset_gpio_num: 3
+      rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB
+      bits_per_pixel: 24
+      reset_active_high: 0
+      dbi_config:
+        virtual_channel: 0
+        lcd_cmd_bits: 8
+        lcd_param_bits: 8
+      dpi_config:
+        virtual_channel: 0
+        dpi_clk_src: MIPI_DSI_DPI_CLK_SRC_DEFAULT
+        dpi_clock_freq_mhz: 36
+        pixel_format: LCD_COLOR_PIXEL_FORMAT_RGB888
+        in_color_format: LCD_COLOR_FMT_RGB888
+        out_color_format: LCD_COLOR_FMT_RGB888
+        num_fbs: 3
+        flags:
+          use_dma2d: true
+        video_timing:
+          h_size: 720
+          v_size: 720
+          hsync_back_porch: 44
+          hsync_pulse_width: 2
+          hsync_front_porch: 46
+          vsync_back_porch: 14
+          vsync_pulse_width: 2
+          vsync_front_porch: 16
+      peripherals:
+      - name: ldo_mipi
+      - name: dsi_display
+
+  # GT911 capacitive touch (I2C, 720x720)
+  - name: lcd_touch
+    chip: gt911
+    type: lcd_touch
+    sub_type: i2c
+    version: default
+    depends_on: [gpio_expander_tca9555, display_lcd]
+    dependencies:
+      esp_lcd_touch:
+        version: "*"
+        require: public
+      espressif/esp_lcd_touch_gt911: "*"
+    config:
+      io_i2c_config:
+        lcd_cmd_bits: 16
+      touch_config:
+        x_max: 720
+        y_max: 720
+        flags:
+          mirror_x: false
+          mirror_y: false
+    peripherals:
+      - name: i2c_master
+        i2c_addr: [0xba, 0x28]
+
+  # Backlight control
+  - name: lcd_brightness
+    type: ledc_ctrl
+    version: default
+    depends_on: [gpio_expander_tca9555, display_lcd]
+    peripherals:
+      - name: ledc_backlight
+
+  # Vibration motor
+  - name: vibration_motor
+    type: ledc_ctrl
+    version: default
+    config:
+      default_percent: 0
+    peripherals:
+      - name: ledc_vibration
+
+  # Camera (MIPI-CSI, OV2710)
+  # Reset shared with LCD on GPIO 3; PWDN via IO expander P0-2
+  - name: camera
+    type: camera
+    version: default
+    sub_type: "csi"
+    depends_on: gpio_expander_tca9555
+    config:
+      csi_config:
+        reset_io: -1
+        pwdn_io: -1
+        dont_init_ldo: true
+    peripherals:
+      - name: "i2c_master"
+        frequency: 100000
+      - name: ldo_mipi

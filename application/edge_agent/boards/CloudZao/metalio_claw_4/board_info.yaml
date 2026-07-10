@@ -1,0 +1,4 @@
+board: metalio_claw_4
+chip: esp32p4
+description: "CloudZao Metalio Claw4 Board"
+manufacturer: "CloudZao"
