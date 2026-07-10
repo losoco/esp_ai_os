@@ -17,9 +17,9 @@ devices:
       # Output pins: P0-0(GPS), P0-1(PA_SWITCH), P0-2(CAM_PWDN), P0-3(SD),
       #              P0-4(PWR_KEY_PULSE), P0-6(BT_POWER), P0-7(RST_4G), P1-0(PA)
       output_io_mask: [0, 1, 2, 3, 4, 6, 7, 8]
-      # Initial levels: GPS=on, PA_SWITCH=WiFi, CAM=off, SD=on,
+      # Initial levels: GPS=on, PA_SWITCH=WiFi, CAM=on(low=powered), SD=on,
       #                 PWR_KEY_PULSE=low, BT=on, 4G_RST=released, PA=on
-      output_io_level_mask: [1, 1, 1, 0, 0, 1, 1, 1]
+      output_io_level_mask: [1, 1, 0, 0, 0, 1, 1, 1]
       # Input pins: P0-5(PWR_KEY), P1-1(ACCEL_INT), P1-2(USB_DET), P1-3(WIRELESS_DET)
       input_io_mask: [5, 9, 10, 11]
     peripherals:
@@ -138,6 +138,7 @@ devices:
 
   # Camera (MIPI-CSI, OV2710)
   # Reset shared with LCD on GPIO 3; PWDN via IO expander P0-2
+  # XCLK on GPIO32, 24MHz (required for OV2710 to function)
   - name: camera
     type: camera
     version: default
@@ -145,13 +146,16 @@ devices:
     depends_on: gpio_expander_tca9555
     config:
       csi_config:
+        i2c_name: i2c_master
+        i2c_freq: 100000
+        ldo_name: ldo_mipi
         reset_io: -1
         pwdn_io: -1
         dont_init_ldo: true
-    peripherals:
-      - name: "i2c_master"
-        frequency: 100000
-      - name: ldo_mipi
+        xclk_config:
+          esp_clock_router_cfg:
+            xclk_pin: 32
+            xclk_freq_hz: 24000000
 
   # Audio DAC (speaker output, I2S slave mode — BCLK/WS from BT module)
   - name: audio_dac
