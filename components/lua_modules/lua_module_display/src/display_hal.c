@@ -47,6 +47,8 @@ typedef struct {
     int height;
     size_t framebuffer_bytes;
     uint16_t *framebuffers[DISPLAY_HAL_FRAMEBUFFER_COUNT_MAX];
+    uint8_t *submit_rgb888_buffer;       /* Conversion buffer: RGB565 -> RGB888 */
+    size_t submit_rgb888_pixels;
     uint8_t framebuffer_count;
     uint8_t draw_framebuffer_index;
     uint8_t visible_framebuffer_index;
@@ -105,6 +107,12 @@ static esp_err_t display_hal_checked_rgb565_bytes(int width, int height, size_t 
 static bool display_hal_panel_requires_swap(void)
 {
     return s_state.panel_if == DISPLAY_HAL_PANEL_IF_IO;
+}
+
+static bool display_hal_panel_needs_rgb888(void)
+{
+    /* MIPI-DSI panels configured for RGB888 need RGB888 data submission */
+    return s_state.panel_if == DISPLAY_HAL_PANEL_IF_MIPI_DSI;
 }
 
 static void display_hal_bswap16_into(uint16_t *dst, const uint16_t *src, size_t pixel_count)
@@ -219,6 +227,20 @@ esp_err_t display_hal_create(esp_lcd_panel_handle_t panel_handle,
         ESP_GOTO_ON_FALSE(s_state.submit_swap_buffer != NULL, ESP_ERR_NO_MEM, fail, TAG, "alloc submit swap buffer failed");
         s_state.submit_swap_buffer_pixels = (size_t)lcd_width * (size_t)lcd_height;
     }
+
+    /* Allocate RGB565->RGB888 conversion buffer (only used when panel needs RGB888) */
+    if (s_state.submit_rgb888_buffer) {
+        heap_caps_free(s_state.submit_rgb888_buffer);
+        s_state.submit_rgb888_buffer = NULL;
+    }
+    if (display_hal_panel_needs_rgb888()) {
+        size_t rgb888_pixels = (size_t)lcd_width * (size_t)lcd_height;
+        s_state.submit_rgb888_buffer = heap_caps_aligned_alloc(
+            16, rgb888_pixels * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        ESP_GOTO_ON_FALSE(s_state.submit_rgb888_buffer != NULL, ESP_ERR_NO_MEM, fail, TAG,
+                          "alloc submit rgb888 buffer failed");
+        s_state.submit_rgb888_pixels = rgb888_pixels;
+    }
     display_hal_clear_clip_locked();
 
     if (!s_state.display_flush_done) {
@@ -236,6 +258,9 @@ fail:
         heap_caps_free(s_state.submit_swap_buffer);
         s_state.submit_swap_buffer = NULL;
         s_state.submit_swap_buffer_pixels = 0;
+        heap_caps_free(s_state.submit_rgb888_buffer);
+        s_state.submit_rgb888_buffer = NULL;
+        s_state.submit_rgb888_pixels = 0;
     }
     display_hal_unlock();
     return ret;
@@ -779,7 +804,35 @@ static esp_err_t display_hal_submit_bitmap_locked(int x_start, int y_start,
         submit_pixels = swap_buffer;
     }
 
-    ret = esp_lcd_panel_draw_bitmap(s_state.panel, x_start, y_start, x_end, y_end, submit_pixels);
+    /* Convert RGB565 -> RGB888 for MIPI-DSI RGB888 panels */
+    const uint8_t *rgb888_data = NULL;
+    if (display_hal_panel_needs_rgb888()) {
+        if (pixel_count == 0) {
+            pixel_count = (size_t)(x_end - x_start) * (size_t)(y_end - y_start);
+        }
+        ESP_RETURN_ON_FALSE(s_state.submit_rgb888_buffer != NULL, ESP_ERR_INVALID_STATE, TAG,
+                            "submit rgb888 buffer missing");
+        const uint16_t *src = submit_pixels;
+        uint8_t *dst = s_state.submit_rgb888_buffer;
+        for (size_t i = 0; i < pixel_count; i++) {
+            uint16_t px = src[i];
+            /* RGB565 -> BGR888, BGR byte order for DPI panel */
+            dst[i * 3 + 0] = (uint8_t)(px << 3);           /* B */
+            dst[i * 3 + 1] = (uint8_t)((px >> 3) & 0xFC);  /* G */
+            dst[i * 3 + 2] = (uint8_t)((px >> 8) & 0xF8);  /* R */
+        }
+        rgb888_data = s_state.submit_rgb888_buffer;
+    }
+
+    if (rgb888_data) {
+        /* Submit entire row to panel; use x_start/y_start as the offset is already baked in */
+        ret = esp_lcd_panel_draw_bitmap(s_state.panel,
+                                        x_start, y_start, x_end, y_end,
+                                        rgb888_data);
+    } else {
+        ret = esp_lcd_panel_draw_bitmap(s_state.panel,
+                                        x_start, y_start, x_end, y_end, submit_pixels);
+    }
     if (ret != ESP_OK) {
         return ret;
     }
