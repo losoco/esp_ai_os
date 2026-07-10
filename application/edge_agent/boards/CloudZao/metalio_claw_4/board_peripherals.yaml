@@ -11,7 +11,7 @@ peripherals:
         sda: 7
         scl: 8
 
-  # I2S audio output (speaker via BT audio codec)
+  # I2S audio output (ESP32-P4 as clock master; BT module as slave)
   - name: i2s_audio_out
     type: i2s
     format: "std-out"
@@ -21,17 +21,17 @@ peripherals:
       sample_rate_hz: 16000
       clk_src: "I2S_CLK_SRC_DEFAULT"
       mclk_multiple: 256
-      data_bit_width: 16
+      data_bit_width: 32
       slot_mode: "I2S_SLOT_MODE_STEREO"
       slot_mask: "I2S_STD_SLOT_BOTH"
-      ws_width: 16
+      ws_width: 32
       pins:
         bclk: 12
         ws: 10
         dout: 9
         din: 11
 
-  # I2S audio input (microphone via BT audio codec)
+  # I2S audio input (ESP32-P4 as clock master)
   - name: i2s_audio_in
     type: i2s
     format: "std-in"

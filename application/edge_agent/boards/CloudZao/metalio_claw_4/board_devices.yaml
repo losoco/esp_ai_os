@@ -152,3 +152,30 @@ devices:
       - name: "i2c_master"
         frequency: 100000
       - name: ldo_mipi
+
+  # Audio DAC (speaker output, I2S slave mode — BCLK/WS from BT module)
+  - name: audio_dac
+    chip: internal
+    type: audio_codec
+    version: default
+    depends_on: gpio_expander_tca9555
+    config:
+      dac_enabled: true
+      dac_max_channel: 2
+      dac_channel_mask: "11"
+    peripherals:
+      - name: i2s_audio_out
+
+  # Audio ADC (microphone input, I2S slave mode — BCLK/WS from BT module)
+  - name: audio_adc
+    chip: internal
+    type: audio_codec
+    version: default
+    depends_on: gpio_expander_tca9555
+    config:
+      adc_enabled: true
+      adc_max_channel: 2
+      adc_channel_mask: "11"
+      adc_channel_labels: [FC, RE]
+    peripherals:
+      - name: i2s_audio_in

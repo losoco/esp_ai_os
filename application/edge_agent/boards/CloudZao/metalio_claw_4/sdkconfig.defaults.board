@@ -105,3 +105,8 @@ CONFIG_ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER=y
 # Enable this so ESP-Hosted configures its own LDO for SDIO slot 1 independently.
 #
 CONFIG_ESP_HOSTED_SD_PWR_CTRL_LDO_INTERNAL_IO=y
+
+#
+# Audio codec (dummy — no physical codec chip; raw I2S to BT module)
+#
+CONFIG_CODEC_DUMMY_SUPPORT=y
