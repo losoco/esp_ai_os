@@ -146,16 +146,16 @@ devices:
     depends_on: gpio_expander_tca9555
     config:
       csi_config:
-        i2c_name: i2c_master
-        i2c_freq: 100000
-        ldo_name: ldo_mipi
         reset_io: -1
         pwdn_io: -1
         dont_init_ldo: true
         xclk_config:
-          esp_clock_router_cfg:
-            xclk_pin: 32
-            xclk_freq_hz: 24000000
+          xclk_pin: 32
+          xclk_freq_hz: 24000000
+    peripherals:
+      - name: "i2c_master"
+        frequency: 100000
+      - name: ldo_mipi
 
   # Audio DAC (speaker output, I2S slave mode — BCLK/WS from BT module)
   - name: audio_dac
