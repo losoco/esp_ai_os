@@ -179,3 +179,15 @@ devices:
       adc_channel_labels: [FC, RE]
     peripherals:
       - name: i2s_audio_in
+
+  # Bluetooth module (UART2 for AT commands, I2S for audio)
+  # BT_POWER is controlled by TCA9555 P0-6 (high = powered on)
+  - name: bt_module
+    type: custom
+    version: default
+    depends_on: gpio_expander_tca9555
+    config:
+      uart_num: 2
+      tx_pin: 26
+      rx_pin: 27
+      baud_rate: 115200

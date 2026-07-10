@@ -11,11 +11,11 @@ peripherals:
         sda: 7
         scl: 8
 
-  # I2S audio output (ESP32-P4 as clock master; BT module as slave)
+  # I2S audio output (ESP32-P4 as clock slave; BT module provides BCLK/WS)
   - name: i2s_audio_out
     type: i2s
     format: "std-out"
-    role: master
+    role: slave
     config: &i2s_config
       port: 0
       sample_rate_hz: 16000
@@ -31,11 +31,11 @@ peripherals:
         dout: 9
         din: 11
 
-  # I2S audio input (ESP32-P4 as clock master)
+  # I2S audio input (ESP32-P4 as clock slave; BT module provides BCLK/WS)
   - name: i2s_audio_in
     type: i2s
     format: "std-in"
-    role: master
+    role: slave
     config: *i2s_config
 
   # LDO for MIPI DSI PHY power supply

@@ -107,6 +107,8 @@ CONFIG_ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER=y
 CONFIG_ESP_HOSTED_SD_PWR_CTRL_LDO_INTERNAL_IO=y
 
 #
-# Audio codec (dummy — no physical codec chip; raw I2S to BT module)
+# Audio codec (dummy - no physical codec chip; raw I2S to BT module)
 #
 CONFIG_CODEC_DUMMY_SUPPORT=y
+CONFIG_APP_CLAW_LUA_MODULE_AUDIO=y
+CONFIG_APP_CLAW_LUA_MODULE_BT_AUDIO=y
