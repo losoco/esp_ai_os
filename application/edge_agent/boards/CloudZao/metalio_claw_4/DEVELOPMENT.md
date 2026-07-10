@@ -87,6 +87,7 @@
 | 摄像头 (OV2710) | 已配置 | MIPI-CSI, PWDN 通过 IO 扩展器, 共享 LDO mipi |
 | WiFi (ESP32-C5) | 已工作 | ESP-Hosted SDIO, LDO chan 4 独立管理 |
 | NV3051F LCD 驱动 | 已移植 | `components/esp_lcd_nv3051f/` |
+| 蓝牙模块 | 已工作 | UART2 (TX=26, RX=27), I2S 从模式, AT 命令 Mode 1 初始化 |
 
 ### 2.3 已解决的关键问题
 
@@ -95,6 +96,9 @@
 | SDIO C5 通信失败 | P4 默认 SDIO 引脚与实际 PCB 不同 | 设置 `ESP_HOSTED_PRIV_SDIO_PIN_*_SLOT_1` |
 | LDO 通道冲突 | SD 卡和 C5 共享 LDO chan 4, SD 卡释放后 C5 断电 | 启用 `ESP_HOSTED_SD_PWR_CTRL_LDO_INTERNAL_IO`, SD 卡 `ldo_chan_id: -1` |
 | 振动马达一直转 | `dev_ledc_ctrl` 默认 `default_percent=100` | 显式设置 `default_percent: 0` |
+| 音频 I2S 时钟错误 | I2S 配置为主模式, 但蓝牙芯片需要提供 BCLK/WS | 修改 `board_peripherals.yaml` I2S role 为 `slave` |
+| 蓝牙模块未初始化 | 缺少蓝牙模块 UART 通信初始化 | 添加 `bt_module` 自定义设备 + `setup_device.c` UART2 初始化 |
+| BT 模块不提供 I2S 时钟 | 蓝牙芯片上电后未收到 AT 命令, 未进入接收模式 | `setup_device.c` 添加 `bt_module_mode_init_task` 发送 `AT+RX=2` (700ms) `AT+MODE=1` |
 
 ---
 
@@ -167,7 +171,7 @@
 | 设备 | 芯片 | 接口 | 引脚 | 移植方式 | 备注 |
 |------|------|------|------|----------|------|
 | GPS | UART NMEA | UART | TX=38, RX=37 | Lua UART 驱动 | 9600 baud, NMEA-0183, 电源=TCA9555 P0-0 |
-| 蓝牙音频 | BTAudioCodec | UART2 + I2S | TX=26, RX=27 | 自定义组件 | 115200 baud, AT 命令, 三模式切换 |
+| 蓝牙音频 | BTAudioCodec | UART2 + I2S | TX=26, RX=27 | 自定义组件 | 115200 baud, AT 命令, 三模式切换 (UART + I2S 已配置) |
 
 #### 3.5 GPS 模组
 
@@ -188,12 +192,16 @@ I2S: BCLK=12, WS=10, DOUT=9, DIN=11 (I2S_NUM_0, slave 模式)
 电源: TCA9555 P0-6 (BT_POWER)
 
 三种模式 (AT 命令切换):
-  1. 日常语音交互 (默认)
-  2. 连接蓝牙耳机/音箱
-  3. 手机 -> 设备蓝牙音箱播放
+  1. 日常语音交互 (默认) -- 已实现: setup_device.c 启动时自动发送 AT+RX=2 + AT+MODE=1
+  2. 连接蓝牙耳机/音箱   -- 待实现: AT+TX=1 + AT+MODE=2
+  3. 手机 -> 设备蓝牙音箱播放 -- 待实现: AT+RX=1 + AT+MODE=3
 ```
 
-这是最复杂的设备, 需要 C 层组件封装 AT 命令协议和 I2S 数据流管理。
+Mode 1 已通过 `bt_module_mode_init_task` 在 `setup_device.c` 中实现, 开机自动
+将 BT 芯片切换到接收模式, 激活 I2S 时钟输出。音频数据通路 (I2S slave ->
+esp_codec_dev -> lua_module_audio) 已就绪。
+
+Mode 2/3 需要 C 层组件封装完整 AT 命令协议 (扫描、连接、SCO 切换等)。
 
 ### P2 - 需要完整协议栈 (高难度)
 
