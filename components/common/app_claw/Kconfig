@@ -374,6 +374,14 @@ menu "App Claw Config"
                 Enable the Fuel Gauge Lua module and keep app_claw's direct dependency
                 on lua_module_fuel_gauge when Lua capability is enabled.
 
+        config APP_CLAW_LUA_MODULE_BT_AUDIO
+            bool "Enable BT Audio Lua module"
+            default n
+            help
+                Enable the BT Audio Lua module for switching Bluetooth audio chip
+                operating modes (local playback, BT pairing, music receive) via UART
+                AT commands.
+
         config APP_CLAW_LUA_MODULE_IMAGE
             bool "Enable image Lua module"
             default y

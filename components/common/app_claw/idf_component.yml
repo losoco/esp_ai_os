@@ -268,6 +268,12 @@ dependencies:
       - if: $CONFIG{APP_CLAW_LUA_MODULE_FUEL_GAUGE} == True
     path: ../../lua_modules/lua_module_fuel_gauge
 
+  lua_module_bt_audio:
+    rules:
+      - if: $CONFIG{APP_CLAW_CAP_LUA} == True
+      - if: $CONFIG{APP_CLAW_LUA_MODULE_BT_AUDIO} == True
+    path: ../../lua_modules/lua_module_bt_audio
+
   lua_module_image:
     rules:
       - if: $CONFIG{APP_CLAW_CAP_LUA} == True
