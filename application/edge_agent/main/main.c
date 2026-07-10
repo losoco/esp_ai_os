@@ -25,6 +25,7 @@
 #include "cmd_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "mdns.h"
 #if CONFIG_APP_CLAW_CAP_IM_WECHAT
 #include "cap_im_wechat.h"
 #endif
@@ -368,6 +369,18 @@ void app_main(void)
         ESP_LOGE(TAG, "Wi-Fi start failed: %s", esp_err_to_name(wifi_err));
     } else {
         ESP_ERROR_CHECK(http_server_start());
+
+        /* Initialize mDNS so the device is reachable as <hostname>.local */
+        esp_err_t mdns_err = mdns_init();
+        if (mdns_err != ESP_OK) {
+            ESP_LOGW(TAG, "mDNS init failed: %s", esp_err_to_name(mdns_err));
+        } else {
+            const char *hostname = "esp-claw";
+            mdns_hostname_set(hostname);
+            mdns_instance_name_set(hostname);
+            ESP_LOGI(TAG, "mDNS started: http://%s.local/", hostname);
+        }
+
         if (captive_dns_start(&(captive_dns_config_t) {
                 .ap_netif = wifi_manager_get_ap_netif(),
                 .configure_dhcp_dns = true,
