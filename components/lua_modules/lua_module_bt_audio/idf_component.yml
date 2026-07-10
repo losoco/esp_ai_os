@@ -1,0 +1,3 @@
+dependencies:
+  lua_driver_uart:
+    path: ../lua_driver_uart
