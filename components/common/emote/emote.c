@@ -16,6 +16,7 @@
 #include "freertos/FreeRTOS.h"
 #include "gfx.h"
 #include "display_arbiter.h"
+#include "esp_heap_caps.h"
 
 static const char *TAG = "app_emote";
 
@@ -26,6 +27,9 @@ static esp_lcd_panel_handle_t s_panel_handle;
 static int s_lcd_width;
 static int s_lcd_height;
 static emote_handle_t s_emote_handle;
+static bool s_needs_rgb565_to_rgb888 = false;
+static uint8_t *s_convert_buf = NULL;
+static size_t s_convert_buf_size = 0;
 
 static bool emote_should_swap_color(const dev_display_lcd_config_t *lcd_cfg)
 {
@@ -64,7 +68,37 @@ static void emote_flush_callback(int x_start, int y_start, int x_end, int y_end,
         return;
     }
 
-    esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel_handle, x_start, y_start, x_end, y_end, data);
+    const void *draw_data = data;
+
+    if (s_needs_rgb565_to_rgb888) {
+        /* emote gfx library always outputs RGB565 (2 bytes/pixel), but the DPI
+         * panel is configured for RGB888 (3 bytes/pixel). Convert in software. */
+        int w = x_end - x_start;
+        int h = y_end - y_start;
+        size_t pixel_count = (size_t)w * h;
+        size_t needed = pixel_count * 3;
+        if (needed > s_convert_buf_size) {
+            if (s_convert_buf) {
+                heap_caps_free(s_convert_buf);
+            }
+            s_convert_buf = heap_caps_malloc(needed, MALLOC_CAP_DEFAULT);
+            s_convert_buf_size = needed;
+        }
+        if (s_convert_buf) {
+            const uint16_t *src = (const uint16_t *)data;
+            uint8_t *dst = s_convert_buf;
+            for (size_t i = 0; i < pixel_count; i++) {
+                uint16_t px = src[i];
+                /* RGB565: RRRRRGGG GGGBBBBB -> BGR888 for DPI panel */
+                dst[i * 3 + 0] = (uint8_t)(px << 3);           /* B */
+                dst[i * 3 + 1] = (uint8_t)((px >> 3) & 0xFC);  /* G */
+                dst[i * 3 + 2] = (uint8_t)((px >> 8) & 0xF8);  /* R */
+            }
+            draw_data = s_convert_buf;
+        }
+    }
+
+    esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel_handle, x_start, y_start, x_end, y_end, draw_data);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
     }
@@ -114,6 +148,7 @@ static esp_err_t emote_load_board_display(void)
     s_io_handle = lcd_handles->io_handle;
     s_lcd_width = lcd_cfg->lcd_width;
     s_lcd_height = lcd_cfg->lcd_height;
+    s_needs_rgb565_to_rgb888 = (lcd_cfg->bits_per_pixel >= 24);
     return ESP_OK;
 #endif
 }
@@ -197,6 +232,11 @@ static void emote_cleanup(void)
     if (s_emote_handle) {
         emote_deinit(s_emote_handle);
         s_emote_handle = NULL;
+    }
+    if (s_convert_buf) {
+        heap_caps_free(s_convert_buf);
+        s_convert_buf = NULL;
+        s_convert_buf_size = 0;
     }
     display_arbiter_set_owner_changed_callback(NULL, NULL);
 }
