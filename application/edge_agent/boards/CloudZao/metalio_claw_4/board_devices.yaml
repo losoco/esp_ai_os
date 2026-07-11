@@ -203,6 +203,20 @@ devices:
     peripherals:
       - name: i2c_master
 
+  # Accelerometer (SC7A20H / LIS2DH12, I2C 0x19)
+  # Pure Lua driver via lib_sc7a20h.lua; no C init needed.
+  # Interrupt on TCA9555 P1-1 (ACCEL_INT, active low).
+  - name: accelerometer
+    chip: sc7a20h
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    config:
+      i2c_addr: 0x19
+      frequency: 400000
+    peripherals:
+      - name: i2c_master
+
   # Bluetooth module (UART2 for AT commands, I2S for audio)
   # BT_POWER is controlled by TCA9555 P0-6 (high = powered on)
   - name: bt_module

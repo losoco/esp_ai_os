@@ -54,9 +54,17 @@ static esp_err_t files_run_handler(httpd_req_t *req)
     cJSON *resp = cJSON_CreateObject();
     if (resp) {
         cJSON_AddBoolToObject(resp, "ok", true);
+        /* cap_lua_run_script_async writes "Started Lua job <hex_id> (name=...)
+         * ... with job_id=<hex_id> to read ..." */
         const char *id_start = strstr(output, "job_id=");
-        if (id_start) {
+        if (!id_start) {
+            /* Fallback: try "Lua job " prefix */
+            id_start = strstr(output, "Lua job ");
+            if (id_start) id_start += 8; /* skip "Lua job " */
+        } else {
             id_start += 7; /* skip "job_id=" */
+        }
+        if (id_start) {
             char job_id[32] = {0};
             const char *end = id_start;
             while (*end && *end != ' ' && *end != '.' && *end != '\n') {

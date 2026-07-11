@@ -23,7 +23,7 @@
 | 电量计 | BQ27220 | 0x55 | 已移植 (Lua 驱动, lib_fuel_gauge) |
 | 无线充电 | NU1680 | 0x60 | 待移植 |
 | 磁力计 | QMC6309 | 0x7C | 待移植 |
-| 加速度计 | SC7A20H | 0x19 | 待移植 |
+| 加速度计 | SC7A20H | 0x19 | 已移植 (Lua 驱动, lib_sc7a20h) |
 | 摄像头 SCCB | OV2710 | 0x36 | 已移植 (Board Manager) |
 
 ### GPIO 引脚总览
@@ -90,6 +90,7 @@
 | 蓝牙模块 | 已工作 | UART2 (TX=26, RX=27), I2S 从模式, AT 命令 Mode 1 初始化 |
 | 蓝牙音频 Lua 模块 | 已完成 | `lua_module_bt_audio`，支持 local/pair/music 三种模式切换 |
 | BQ27220 电量计 | 已工作 | I2C 0x55, 纯 Lua 驱动 `lib_fuel_gauge`, 电压/电流/SOC 读取 |
+| SC7A20H 加速度计 | 已工作 | I2C 0x19, 纯 Lua 驱动 `lib_sc7a20h`, LIS2DH12 兼容, ±2g/100Hz |
 
 ### 2.3 已解决的关键问题
 
@@ -247,7 +248,7 @@ UART: TX=GPIO28, RX=GPIO29, MRDY=GPIO13, SRDY=GPIO4
 - [x] BQ27220 电量计 Lua 驱动
 - [ ] NU1680 无线充电 Lua 驱动
 - [ ] QMC6309 磁力计 Lua 驱动
-- [ ] SC7A20H 加速度计 Lua 驱动
+- [x] SC7A20H 加速度计 Lua 驱动
 
 ### 阶段三: 通信外设
 
