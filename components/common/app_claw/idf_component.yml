@@ -268,6 +268,12 @@ dependencies:
       - if: $CONFIG{APP_CLAW_LUA_MODULE_FUEL_GAUGE} == True
     path: ../../lua_modules/lua_module_fuel_gauge
 
+  lua_module_sc7a20h:
+    rules:
+      - if: $CONFIG{APP_CLAW_CAP_LUA} == True
+      - if: $CONFIG{APP_CLAW_LUA_MODULE_SC7A20H} == True
+    path: ../../lua_modules/lua_module_sc7a20h
+
   lua_module_bt_audio:
     rules:
       - if: $CONFIG{APP_CLAW_CAP_LUA} == True

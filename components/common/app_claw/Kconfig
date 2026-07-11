@@ -374,6 +374,14 @@ menu "App Claw Config"
                 Enable the Fuel Gauge Lua module and keep app_claw's direct dependency
                 on lua_module_fuel_gauge when Lua capability is enabled.
 
+        config APP_CLAW_LUA_MODULE_SC7A20H
+            bool "Enable SC7A20H Accelerometer Lua module"
+            default n
+            help
+                Enable the SC7A20H / LIS2DH12 accelerometer Lua module and keep
+                app_claw's direct dependency on lua_module_sc7a20h when Lua
+                capability is enabled.
+
         config APP_CLAW_LUA_MODULE_BT_AUDIO
             bool "Enable BT Audio Lua module"
             default n
