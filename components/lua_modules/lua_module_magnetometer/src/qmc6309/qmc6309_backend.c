@@ -35,19 +35,40 @@ static esp_err_t qmc6309_probe(lua_mag_backend_ctx_t *ctx, uint8_t i2c_addr)
     ESP_RETURN_ON_ERROR(lua_mag_ctx_select_addr(ctx, i2c_addr), TAG,
                         "Failed to select QMC6309 I2C address 0x%02x", i2c_addr);
 
+    /* Soft reset */
     ESP_RETURN_ON_ERROR(qmc_write_reg(ctx, QMC6309_REG_CTRL2, QMC6309_CTRL2_SOFT_RESET),
                         TAG, "QMC6309 soft reset failed");
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(25));
 
     ESP_RETURN_ON_ERROR(qmc_write_reg(ctx, QMC6309_REG_CTRL2, 0x00),
                         TAG, "QMC6309 clear reset failed");
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(25));
 
-    ESP_RETURN_ON_ERROR(qmc_write_reg(ctx, QMC6309_REG_CTRL2, 0x00),
-                        TAG, "QMC6309 range config failed");
+    /* Mode machine: suspend -> normal -> suspend -> continuous
+     * Required by datasheet for reliable DRDY. Each step ≥10ms. */
+    ESP_RETURN_ON_ERROR(qmc_write_reg(ctx, QMC6309_REG_CTRL1,
+                                      QMC6309_CTRL1_OSR_RNG | QMC6309_CTRL1_MODE_SUSPEND),
+                        TAG, "QMC6309 suspend 1 failed");
+    qmc_write_reg(ctx, QMC6309_REG_CTRL2, QMC6309_CTRL2_SET_RESET);
+    vTaskDelay(pdMS_TO_TICKS(20));
 
-    ESP_RETURN_ON_ERROR(qmc_write_reg(ctx, QMC6309_REG_CTRL1, QMC6309_CTRL1_CONT_MODE),
+    ESP_RETURN_ON_ERROR(qmc_write_reg(ctx, QMC6309_REG_CTRL1,
+                                      QMC6309_CTRL1_OSR_RNG | QMC6309_CTRL1_MODE_NORMAL),
+                        TAG, "QMC6309 normal failed");
+    qmc_write_reg(ctx, QMC6309_REG_CTRL2, QMC6309_CTRL2_SET_RESET);
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    ESP_RETURN_ON_ERROR(qmc_write_reg(ctx, QMC6309_REG_CTRL1,
+                                      QMC6309_CTRL1_OSR_RNG | QMC6309_CTRL1_MODE_SUSPEND),
+                        TAG, "QMC6309 suspend 2 failed");
+    qmc_write_reg(ctx, QMC6309_REG_CTRL2, QMC6309_CTRL2_SET_RESET);
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    ESP_RETURN_ON_ERROR(qmc_write_reg(ctx, QMC6309_REG_CTRL1,
+                                      QMC6309_CTRL1_OSR_RNG | QMC6309_CTRL1_MODE_CONTINUOUS),
                         TAG, "QMC6309 continuous mode failed");
+    qmc_write_reg(ctx, QMC6309_REG_CTRL2, QMC6309_CTRL2_SET_RESET);
+    vTaskDelay(pdMS_TO_TICKS(50));
 
     uint8_t chip_id = 0;
     ESP_RETURN_ON_ERROR(i2c_bus_read_bytes(ctx->i2c_dev_handle, QMC6309_REG_CHIP_ID, 1, &chip_id),

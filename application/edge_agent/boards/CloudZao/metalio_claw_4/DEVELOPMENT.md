@@ -22,7 +22,7 @@
 | IO 扩展器 | TCA9555 | 0x20 | 已移植 |
 | 电量计 | BQ27220 | 0x55 | 已移植 (Lua 驱动, lib_fuel_gauge) |
 | 无线充电 | NU1680 | 0x60 | 待移植 |
-| 磁力计 | QMC6309 | 0x7C | 待移植 |
+| 磁力计 | QMC6309 | 0x7C | 已移植 (C 后端, lua_module_magnetometer) |
 | 加速度计 | SC7A20H | 0x19 | 已移植 (Lua 驱动, lib_sc7a20h) |
 | 摄像头 SCCB | OV2710 | 0x36 | 已移植 (Board Manager) |
 

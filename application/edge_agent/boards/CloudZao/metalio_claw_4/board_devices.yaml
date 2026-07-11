@@ -217,6 +217,21 @@ devices:
     peripherals:
       - name: i2c_master
 
+  # Magnetometer (QMC6309, I2C 0x7C)
+  # C backend via lua_module_magnetometer, registered in app_lua_modules.c.
+  - name: magnetometer_sensor
+    chip: qmc6309
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    config:
+      i2c_addr: 0x7C
+      frequency: 400000
+      int_gpio_num: -1
+      sdo_gpio_num: -1
+    peripherals:
+      - name: i2c_master
+
   # Bluetooth module (UART2 for AT commands, I2S for audio)
   # BT_POWER is controlled by TCA9555 P0-6 (high = powered on)
   - name: bt_module
