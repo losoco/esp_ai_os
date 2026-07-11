@@ -290,6 +290,50 @@ export async function deletePath(path: string, options: { recursive?: boolean } 
   return request<unknown>(url, { method: 'DELETE' }, 'Failed to delete path');
 }
 
+export type LuaJobInfo = {
+  ok?: boolean;
+  job_id?: string;
+  name?: string;
+  status?: string;
+  runtime_s?: number;
+  path?: string;
+  exclusive?: string;
+  tail?: string;
+  error?: string;
+};
+
+export async function runLuaFile(path: string, timeoutMs?: number, argsJson?: string) {
+  return request<LuaJobInfo>(
+    '/api/files/run',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path,
+        timeout_ms: timeoutMs ?? 0,
+        args_json: argsJson,
+      }),
+    },
+    'Failed to run Lua file',
+  );
+}
+
+export async function getLuaJobStatus(jobId: string) {
+  return request<LuaJobInfo>(
+    '/api/files/run/' + encodeURIComponent(jobId),
+    undefined,
+    'Failed to get job status',
+  );
+}
+
+export async function stopLuaJob(jobId: string) {
+  return request<LuaJobInfo>(
+    '/api/files/run/' + encodeURIComponent(jobId) + '/stop',
+    { method: 'POST' },
+    'Failed to stop job',
+  );
+}
+
 function makeBlobBytes(size: number): BlobBytes {
   return new Uint8Array(new ArrayBuffer(size));
 }

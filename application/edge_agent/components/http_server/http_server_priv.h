@@ -50,6 +50,7 @@ esp_err_t http_server_register_lua_modules_routes(httpd_handle_t server);
 esp_err_t http_server_register_config_routes(httpd_handle_t server);
 esp_err_t http_server_register_status_routes(httpd_handle_t server);
 esp_err_t http_server_register_files_routes(httpd_handle_t server);
+esp_err_t http_server_register_files_run_routes(httpd_handle_t server);
 #if CONFIG_APP_CLAW_LUA_MODULE_HTTP_SERVER
 esp_err_t http_server_register_lua_app_routes(httpd_handle_t server);
 #endif

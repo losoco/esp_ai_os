@@ -1,4 +1,4 @@
-import { HardDriveDownload, Trash2, X } from 'lucide-solid';
+import { HardDriveDownload, Play, Square, Trash2, X } from 'lucide-solid';
 import { createEffect, createSignal, For, onCleanup, Show, type Component } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { t, tf } from '../i18n';
@@ -8,9 +8,13 @@ import {
   downloadFolderTar,
   fetchFileContent,
   fetchFileList,
+  getLuaJobStatus,
+  runLuaFile,
   saveFileContent,
+  stopLuaJob,
   uploadFile,
   type FileEntry,
+  type LuaJobInfo,
 } from '../api/client';
 import { TabShell } from '../components/layout/TabShell';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -88,6 +92,60 @@ export const FilesPage: Component = () => {
   const [newFolderName, setNewFolderName] = createSignal('');
   let fileInputRef: HTMLInputElement | undefined;
   const [chosenFile, setChosenFile] = createSignal<File | null>(null);
+
+  const [runningJob, setRunningJob] = createSignal<LuaJobInfo | null>(null);
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
+
+  const pollJobStatus = async (jobId: string) => {
+    try {
+      const info = await getLuaJobStatus(jobId);
+      if (info.status === 'done' || info.status === 'failed' || info.status === 'timeout' || info.status === 'stopped') {
+        setRunningJob(null);
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = undefined; }
+        const msg = info.status === 'done'
+          ? (t('fileLuaRunDone') as string)
+          : `${t('fileLuaRunStopped') as string} (${info.status})`;
+        pushToast(msg, info.status === 'done' ? 'success' : 'info');
+        await loadList();
+        return;
+      }
+      setRunningJob(info);
+    } catch {
+      setRunningJob(null);
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = undefined; }
+    }
+  };
+
+  const handleRunLua = async (entry: FileEntry) => {
+    if (runningJob()) {
+      pushToast(t('fileLuaAlreadyRunning') as string, 'error');
+      return;
+    }
+    try {
+      const info = await runLuaFile(entry.path);
+      if (info.job_id) {
+        setRunningJob(info);
+        pushToast(t('fileLuaRunStarted') as string, 'success');
+        pollTimer = setInterval(() => {
+          const job = runningJob();
+          if (job?.job_id) void pollJobStatus(job.job_id);
+        }, 2000);
+      }
+    } catch (err) {
+      pushToast((err as Error).message, 'error');
+    }
+  };
+
+  const handleStopLua = async () => {
+    const job = runningJob();
+    if (!job?.job_id) return;
+    try {
+      await stopLuaJob(job.job_id);
+      pushToast(t('fileLuaRunStopRequested') as string, 'info');
+    } catch (err) {
+      pushToast((err as Error).message, 'error');
+    }
+  };
 
   const [editor, setEditor] = createSignal<EditorState>(initialEditor);
   const [folderDownload, setFolderDownload] = createSignal<FolderDownloadState | null>(null);
@@ -351,6 +409,32 @@ export const FilesPage: Component = () => {
           <Banner kind="error" message={error() ?? undefined} />
         </div>
       </Show>
+      <Show when={runningJob()}>
+        {(job) => (
+          <div class="px-5 pt-4">
+            <div class="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-accent)]/30 bg-[rgba(232,54,45,0.06)] px-4 py-2.5">
+              <div class="flex items-center gap-2 min-w-0 flex-1">
+                <span class="inline-block h-2 w-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                <code class="text-[0.82rem] font-mono text-[var(--color-text-primary)] truncate">
+                  {job().path ?? job().job_id}
+                </code>
+                <span class="text-[0.76rem] text-[var(--color-text-muted)]">
+                  {job().status ?? 'running'} {job().runtime_s != null ? `${job().runtime_s}s` : ''}
+                </span>
+              </div>
+              <button
+                type="button"
+                class="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] hover:bg-[rgba(248,113,113,0.1)]"
+                onClick={() => void handleStopLua()}
+                title={t('fileLuaStop') as string}
+                aria-label={t('fileLuaStop') as string}
+              >
+                <Square class="h-4 w-4 shrink-0" />
+              </button>
+            </div>
+          </div>
+        )}
+      </Show>
       <div class="px-5 pt-4 flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={goUp} disabled={currentPath() === '/'}>
           {t('fileUpDir')}
@@ -500,6 +584,33 @@ export const FilesPage: Component = () => {
                           >
                             <Trash2 class="h-4 w-4 shrink-0" />
                           </button>
+                          <Show when={!entry.is_dir && entry.path.toLowerCase().endsWith('.lua')}>
+                            <Show
+                              when={runningJob()?.path === entry.path || runningJob()?.path?.endsWith?.(entry.path)}
+                              fallback={
+                                <button
+                                  type="button"
+                                  class="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-accent)] hover:bg-[rgba(232,54,45,0.08)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                  disabled={runningJob() !== null}
+                                  onClick={() => void handleRunLua(entry)}
+                                  title={t('fileLuaRun') as string}
+                                  aria-label={t('fileLuaRun') as string}
+                                >
+                                  <Play class="h-4 w-4 shrink-0" />
+                                </button>
+                              }
+                            >
+                              <button
+                                type="button"
+                                class="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] hover:bg-[rgba(248,113,113,0.1)]"
+                                onClick={() => void handleStopLua()}
+                                title={t('fileLuaStop') as string}
+                                aria-label={t('fileLuaStop') as string}
+                              >
+                                <Square class="h-4 w-4 shrink-0" />
+                              </button>
+                            </Show>
+                          </Show>
                         </div>
                       </td>
                     </tr>
