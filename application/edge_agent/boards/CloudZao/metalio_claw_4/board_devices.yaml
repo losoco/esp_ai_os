@@ -190,6 +190,19 @@ devices:
     peripherals:
       - name: i2s_audio_in
 
+  # Fuel Gauge (BQ27220, I2C 0x55)
+  # Pure Lua driver via lib_fuel_gauge.lua; no C init needed.
+  - name: fuel_gauge_sensor
+    chip: bq27220
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    config:
+      i2c_addr: 0x55
+      frequency: 400000
+    peripherals:
+      - name: i2c_master
+
   # Bluetooth module (UART2 for AT commands, I2S for audio)
   # BT_POWER is controlled by TCA9555 P0-6 (high = powered on)
   - name: bt_module
