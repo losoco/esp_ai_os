@@ -195,8 +195,8 @@ static esp_err_t files_run_list_handler(httpd_req_t *req)
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, max-age=0");
 
-    /* cap_lua_list_jobs returns key=value text blocks separated by blank lines.
-     * Convert to JSON array of job objects. */
+    /* cap_lua_list_jobs returns: "job_id | status | name=xxx | exclusive=xxx | runtime=Xs | path=xxx\n"
+     * Each job on one line, fields delimited by " | ". */
     cJSON *root = cJSON_CreateObject();
     cJSON *jobs_array = cJSON_CreateArray();
     if (!root || !jobs_array) {
@@ -207,32 +207,46 @@ static esp_err_t files_run_list_handler(httpd_req_t *req)
     cJSON_AddItemToObject(root, "jobs", jobs_array);
 
     if (err == ESP_OK && output[0]) {
-        char *block = output;
-        cJSON *job_obj = cJSON_CreateObject();
-        while (block && *block) {
-            char *line_end = strchr(block, '\n');
+        char *line = output;
+        while (line && *line) {
+            /* Skip blank lines */
+            if (*line == '\n') { line++; continue; }
+
+            char *line_end = strchr(line, '\n');
             if (line_end) *line_end = '\0';
 
-            if (block[0] == '\0') {
-                /* Blank line = end of job block */
-                if (cJSON_GetArraySize(job_obj) > 0) {
-                    cJSON_AddItemToArray(jobs_array, job_obj);
-                    job_obj = cJSON_CreateObject();
+            cJSON *job_obj = cJSON_CreateObject();
+            if (!job_obj) break;
+
+            /* Split by " | " */
+            char *token = line;
+            char *saveptr = NULL;
+            int field_idx = 0;
+
+            while (token && *token) {
+                /* Find next " | " or end of string */
+                char *sep = strstr(token, " | ");
+                if (sep) *sep = '\0';
+
+                if (field_idx == 0) {
+                    cJSON_AddStringToObject(job_obj, "job_id", token);
+                } else if (field_idx == 1) {
+                    cJSON_AddStringToObject(job_obj, "status", token);
+                } else {
+                    /* key=value fields */
+                    char *eq = strchr(token, '=');
+                    if (eq) {
+                        *eq = '\0';
+                        cJSON_AddStringToObject(job_obj, token, eq + 1);
+                    }
                 }
-            } else {
-                char *eq = strchr(block, '=');
-                if (eq) {
-                    *eq = '\0';
-                    cJSON_AddStringToObject(job_obj, block, eq + 1);
-                }
+
+                field_idx++;
+                token = sep ? sep + 3 : NULL;
             }
 
-            block = line_end ? line_end + 1 : NULL;
-        }
-        if (cJSON_GetArraySize(job_obj) > 0) {
             cJSON_AddItemToArray(jobs_array, job_obj);
-        } else {
-            cJSON_Delete(job_obj);
+            line = line_end ? line_end + 1 : NULL;
         }
     }
 

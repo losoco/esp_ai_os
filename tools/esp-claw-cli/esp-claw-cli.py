@@ -96,30 +96,57 @@ def _progress_bar(done: int, total: int, width: int = 40):
 # ──────────────────────────────────────────────────────────── subcommands
 
 def cmd_discover(args):
-    """mDNS discovery: find all ESP-Claw devices on the LAN."""
+    """Discover ESP-Claw devices via mDNS hostname resolution and HTTP probing."""
     try:
-        from zeroconf import ServiceBrowser, Zeroconf
+        import socket
     except ImportError:
-        raise SystemExit("mDNS discovery requires zeroconf: pip install zeroconf")
+        raise SystemExit("Device discovery requires Python socket module")
 
-    class Listener:
-        def add_service(self, zc, type_, name):
-            info = zc.get_service_info(type_, name)
-            if info:
-                props = {k.decode(): v.decode() for k, v in (info.properties or {}).items()}
-                print(f"  {info.server}  IP={'.'.join(str(b) for b in info.addresses[0]) if info.addresses else '?'}  port={info.port}  props={props}")
+    # Common hostname patterns
+    candidates = [
+        "esp-claw.local",
+        f"esp-claw-{args.host_suffix}.local" if args.host_suffix else None,
+    ]
+    candidates = [c for c in candidates if c is not None]
 
-    print("Scanning for ESP-Claw devices (mDNS _http._tcp)...")
-    zc = Zeroconf()
-    listener = Listener()
-    browser = ServiceBrowser(zc, "_http._tcp.local.", listener)
-    try:
-        time.sleep(3)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        zc.close()
-    print("Done.")
+    if not args.host_suffix:
+        # Also try scanning a range of names
+        for suffix in ["", "1", "2", "3"]:
+            name = f"esp-claw{suffix}.local"
+            if name not in candidates:
+                candidates.append(name)
+
+    found = []
+    for hostname in candidates[:10]:  # Limit to 10 tries
+        ip = _resolve_host(hostname, args.port)
+        if ip != hostname:  # Resolved successfully
+            # Verify it's an ESP-Claw by checking /api/status
+            try:
+                url = f"http://{ip}:{args.port}/api/status"
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    found.append({
+                        "hostname": hostname,
+                        "ip": ip,
+                        "port": args.port,
+                        "ssid": data.get("ap_ssid", "?"),
+                        "storage": data.get("storage_base_path", "?"),
+                    })
+            except Exception:
+                # Host resolved but not an ESP-Claw or not ready yet
+                pass
+
+    if found:
+        print(f"Found {len(found)} device(s):")
+        for d in found:
+            print(f"  {d['hostname']} → {d['ip']}:{d['port']}  AP={d['ssid']}  storage={d['storage']}")
+    else:
+        print("No ESP-Claw devices found.")
+        print("Tips:")
+        print("  - Ensure the device is powered on and connected to the same WiFi network")
+        print("  - Try specifying the IP directly: esp-claw-cli --host <ip> info")
+        print("  - Use --host-suffix to try hostnames like esp-claw-8BA109.local")
 
 
 def cmd_push(args):
@@ -615,7 +642,8 @@ def main():
     p_shell.add_argument("--baud", type=int, default=115200, help="Baud rate")
 
     # discover
-    sub.add_parser("discover", help="Discover ESP-Claw devices via mDNS")
+    p_discover = sub.add_parser("discover", help="Discover ESP-Claw devices via mDNS")
+    p_discover.add_argument("--host-suffix", default=None, help="Try hostname suffix (e.g. 8BA109 for esp-claw-8BA109.local)")
 
     # info
     sub.add_parser("info", help="Show device status")
