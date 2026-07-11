@@ -5,6 +5,10 @@
 #include "esp_lcd_nv3051f.h"
 #include "esp_lcd_touch_gt911.h"
 #include "esp_io_expander_tca95xx_16bit.h"
+#include "esp_io_expander.h"
+#include "esp_board_device.h"
+#include "esp_board_periph.h"
+#include "esp_cam_sensor_xclk.h"
 #include "driver/i2c_master.h"
 #include "driver/uart.h"
 #include "esp_board_entry.h"
@@ -103,6 +107,99 @@ static int bt_module_deinit(void *device_handle)
 }
 
 ESP_BOARD_ENTRY_IMPLEMENT(bt_module, bt_module_init, bt_module_deinit);
+
+/* ── Camera Power Control (PWDN toggle) ───────────────────────────────
+ *
+ * OV2710 boot sequence: XCLK must be running BEFORE PWDN goes low.
+ * The sensor initializes internal registers only when XCLK is present.
+ *
+ * Sequence (matching MetalioClaw4):
+ * 1. Start XCLK (GPIO32, 24MHz)
+ * 2. Wait 50ms for internal PLL to lock
+ * 3. Toggle PWDN: HIGH (off) → LOW (on)
+ * 4. Wait 200ms for sensor to initialize
+ * 5. Camera driver probes SCCB (already ready)
+ */
+static int camera_pwr_init(void *cfg, int cfg_size, void **device_handle)
+{
+    esp_io_expander_handle_t *io_expander_ptr = NULL;
+    esp_err_t ret = esp_board_device_get_handle("gpio_expander_tca9555",
+                                                 (void **)&io_expander_ptr);
+    if (ret != ESP_OK || io_expander_ptr == NULL || *io_expander_ptr == NULL) {
+        ESP_LOGE(TAG, "camera_pwr: failed to get IO expander handle");
+        return -1;
+    }
+
+    esp_io_expander_handle_t io_expander = *io_expander_ptr;
+
+    /* Step 1: Start XCLK first - OV2710 needs clock to initialize */
+    ESP_LOGI(TAG, "camera_pwr: starting XCLK on GPIO32 @ 24MHz");
+    esp_cam_sensor_xclk_handle_t xclk_handle = NULL;
+    ret = esp_cam_sensor_xclk_allocate(ESP_CAM_SENSOR_XCLK_ESP_CLOCK_ROUTER, &xclk_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "camera_pwr: failed to allocate XCLK handle");
+        return -1;
+    }
+
+    esp_cam_sensor_xclk_config_t xclk_config = {
+        .esp_clock_router_cfg = {
+            .xclk_pin = 32,
+            .xclk_freq_hz = 24000000,
+        },
+    };
+    ret = esp_cam_sensor_xclk_start(xclk_handle, &xclk_config);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "camera_pwr: failed to start XCLK");
+        esp_cam_sensor_xclk_free(xclk_handle);
+        return -1;
+    }
+
+    /* Step 2: Wait 50ms for sensor internal PLL to lock onto XCLK */
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    /* Step 3: Toggle PWDN (P0-2): HIGH (off) → LOW (on) */
+    ESP_LOGI(TAG, "camera_pwr: power-cycling CAM_PWDN (P0-2)");
+    esp_io_expander_set_level(io_expander, BIT(2), 1);  /* HIGH = off */
+    vTaskDelay(pdMS_TO_TICKS(50));
+    esp_io_expander_set_level(io_expander, BIT(2), 0);  /* LOW  = on */
+
+    /* Step 4: Wait 200ms for sensor initialization */
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    ESP_LOGI(TAG, "camera_pwr: sensor ready (XCLK running, PWDN low)");
+
+    /* Diagnostic: probe OV2710 on shared I2C bus (7-bit addr 0x36) */
+    void *i2c_handle = NULL;
+    ret = esp_board_periph_ref_handle("i2c_master", &i2c_handle);
+    if (ret == ESP_OK && i2c_handle != NULL) {
+        esp_err_t probe = i2c_master_probe((i2c_master_bus_handle_t)i2c_handle,
+                                           0x36, 200);
+        if (probe == ESP_OK) {
+            ESP_LOGI(TAG, "camera_pwr: OV2710 detected on I2C addr 0x36");
+        } else {
+            ESP_LOGE(TAG, "camera_pwr: OV2710 NOT found on I2C addr 0x36 (err: %s)",
+                     esp_err_to_name(probe));
+        }
+        esp_board_periph_unref_handle("i2c_master");
+    } else {
+        ESP_LOGE(TAG, "camera_pwr: failed to get I2C handle for probe");
+    }
+
+    *device_handle = (void *)xclk_handle;
+    return 0;
+}
+
+static int camera_pwr_deinit(void *device_handle)
+{
+    esp_cam_sensor_xclk_handle_t xclk_handle = (esp_cam_sensor_xclk_handle_t)device_handle;
+    if (xclk_handle != NULL) {
+        esp_cam_sensor_xclk_stop(xclk_handle);
+        esp_cam_sensor_xclk_free(xclk_handle);
+    }
+    return 0;
+}
+
+ESP_BOARD_ENTRY_IMPLEMENT(camera_pwr, camera_pwr_init, camera_pwr_deinit);
 
 esp_err_t lcd_dsi_panel_factory_entry_t(esp_lcd_dsi_bus_handle_t dsi_handle, dev_display_lcd_config_t *lcd_cfg, dev_display_lcd_handles_t *lcd_handles)
 {

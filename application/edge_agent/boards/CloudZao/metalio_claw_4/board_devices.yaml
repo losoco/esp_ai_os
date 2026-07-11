@@ -17,9 +17,9 @@ devices:
       # Output pins: P0-0(GPS), P0-1(PA_SWITCH), P0-2(CAM_PWDN), P0-3(SD),
       #              P0-4(PWR_KEY_PULSE), P0-6(BT_POWER), P0-7(RST_4G), P1-0(PA)
       output_io_mask: [0, 1, 2, 3, 4, 6, 7, 8]
-      # Initial levels: GPS=on, PA_SWITCH=WiFi, CAM=on(low=powered), SD=on,
+      # Initial levels: GPS=on, PA_SWITCH=WiFi, CAM=off(high=powered off, toggled by camera_pwr), SD=on,
       #                 PWR_KEY_PULSE=low, BT=on, 4G_RST=released, PA=on
-      output_io_level_mask: [1, 1, 0, 0, 0, 1, 1, 1]
+      output_io_level_mask: [1, 1, 1, 0, 0, 1, 1, 1]
       # Input pins: P0-5(PWR_KEY), P1-1(ACCEL_INT), P1-2(USB_DET), P1-3(WIRELESS_DET)
       input_io_mask: [5, 9, 10, 11]
     peripherals:
@@ -136,6 +136,13 @@ devices:
     peripherals:
       - name: ledc_vibration
 
+  # Camera power control (PWDN toggle via IO expander P0-2)
+  # OV2710 requires a clean power-up edge: HIGH → LOW with 200ms settle time
+  - name: camera_pwr
+    type: custom
+    version: default
+    depends_on: gpio_expander_tca9555
+
   # Camera (MIPI-CSI, OV2710)
   # Reset shared with LCD on GPIO 3; PWDN via IO expander P0-2
   # XCLK on GPIO32, 24MHz (required for OV2710 to function)
@@ -143,15 +150,14 @@ devices:
     type: camera
     version: default
     sub_type: "csi"
-    depends_on: gpio_expander_tca9555
+    depends_on: [gpio_expander_tca9555, camera_pwr]
     config:
       csi_config:
         reset_io: -1
         pwdn_io: -1
         dont_init_ldo: true
         xclk_config:
-          xclk_pin: 32
-          xclk_freq_hz: 24000000
+          xclk_pin: -1
     peripherals:
       - name: "i2c_master"
         frequency: 100000
