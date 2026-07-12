@@ -21,7 +21,7 @@
 | 触摸控制器 | GT911 | 0x5D / 0x14 | 已移植 |
 | IO 扩展器 | TCA9555 | 0x20 | 已移植 |
 | 电量计 | BQ27220 | 0x55 | 已移植 (Lua 驱动, lib_fuel_gauge) |
-| 无线充电 | NU1680 | 0x60 | 待移植 |
+| 无线充电 | NU1680 | 0x60 | 已移植 (Lua 驱动, lib_nu1680) |
 | 磁力计 | QMC6309 | 0x7C | 已移植 (C 后端, lua_module_magnetometer) |
 | 加速度计 | SC7A20H | 0x19 | 已移植 (Lua 驱动, lib_sc7a20h) |
 | 摄像头 SCCB | OV2710 | 0x36 | 已移植 (Board Manager) |
@@ -91,6 +91,7 @@
 | 蓝牙音频 Lua 模块 | 已完成 | `lua_module_bt_audio`，支持 local/pair/music 三种模式切换 |
 | BQ27220 电量计 | 已工作 | I2C 0x55, 纯 Lua 驱动 `lib_fuel_gauge`, 电压/电流/SOC 读取 |
 | SC7A20H 加速度计 | 已工作 | I2C 0x19, 纯 Lua 驱动 `lib_sc7a20h`, LIS2DH12 兼容, ±2g/100Hz |
+| NU1680 无线充电 | 已工作 | I2C 0x60, 纯 Lua 驱动 `lib_nu1680`, 过流保护电流限制 + 温度保护 |
 | QMC6309 磁力计 | 已工作 | I2C 0x7C, C 后端 `lua_module_magnetometer`, 硬铁校准 API |
 
 ### 2.3 已解决的关键问题
@@ -117,7 +118,7 @@
 | 设备 | 芯片 | 接口 | I2C/UART | 移植方式 | 备注 |
 |------|------|------|----------|----------|------|
 | 电量计 | BQ27220 | I2C | 0x55 | Lua I2C 驱动 | 电压/电流读取, 60 点滑动平均, 3.3V=0% / 4.2V=100% |
-| 无线充电 | NU1680 | I2C | 0x60 | Lua I2C 驱动 | 寄存器 0x1E 限流配置, 0x15 温度保护, 500ms 探测 |
+| 无线充电 | NU1680 | I2C | 0x60 | Lua I2C 驱动 | 已完成, 寄存器 0x1E 限流配置, 0x15 温度保护, 500ms 探测 |
 | 磁力计 | QMC6309 | I2C | 0x7C | C 后端驱动 | Chip ID 0x00=0x90, X/Y/Z 数据 0x01-0x06 |
 | 加速度计 | SC7A20H | I2C | 0x19 | Lua I2C 驱动 | LIS2DH12 兼容, CTRL_REG1=0x20, CTRL_REG4=0x23, 中断=P1-1 |
 
@@ -146,6 +147,8 @@
 逻辑:
   - 独立 task 每 500ms 探测 I2C 0x60 是否在线
   - 在线时自动初始化寄存器
+
+**已完成**: 纯 Lua 驱动 (`lib_nu1680`)，支持 `configure` / `set_current_limit` / `get_current_limit`
 ```
 
 #### 3.3 QMC6309 磁力计
@@ -249,7 +252,7 @@ UART: TX=GPIO28, RX=GPIO29, MRDY=GPIO13, SRDY=GPIO4
 ### 阶段二: 传感器驱动 (Lua I2C)
 
 - [x] BQ27220 电量计 Lua 驱动
-- [ ] NU1680 无线充电 Lua 驱动
+- [x] NU1680 无线充电 Lua 驱动
 - [x] QMC6309 磁力计 C 后端驱动
 - [x] SC7A20H 加速度计 Lua 驱动
 

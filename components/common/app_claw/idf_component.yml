@@ -274,6 +274,12 @@ dependencies:
       - if: $CONFIG{APP_CLAW_LUA_MODULE_SC7A20H} == True
     path: ../../lua_modules/lua_module_sc7a20h
 
+  lua_module_nu1680:
+    rules:
+      - if: $CONFIG{APP_CLAW_CAP_LUA} == True
+      - if: $CONFIG{APP_CLAW_LUA_MODULE_NU1680} == True
+    path: ../../lua_modules/lua_module_nu1680
+
   lua_module_bt_audio:
     rules:
       - if: $CONFIG{APP_CLAW_CAP_LUA} == True
