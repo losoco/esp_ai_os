@@ -8,8 +8,7 @@
 
 local i2c = require("i2c")
 local delay = require("delay")
-local bm = require("board_manager")
-local display = require("display")
+local gpio = require("gpio")
 
 -- ========== 配置 ==========
 local I2C_PORT       = 1
@@ -39,14 +38,17 @@ local function probe_nu1680(i2c_dev)
         local data = i2c_dev:read(1, 0x1E)
         -- 能读到数据 = 设备在线
     end)
+    if not ok then
+        print("[wxchg] probe failed: " .. tostring(err):sub(1,60))
+    end
     return ok
 end
 
 -- ========== NU1680 配置（直接 I2C 写，避免 close 冲突）==========
 local function configure_nu1680(dev)
     local ok, err = pcall(function()
-        dev:write_byte(0x00, 0x1E)  -- MTP_ILIM_SET = 1.4A
-        dev:write_byte(0x00, 0x15)  -- 关闭温度保护
+        dev:write(string.char(0x00), 0x1E)  -- MTP_ILIM_SET = 1.4A
+        dev:write(string.char(0x00), 0x15)  -- 关闭温度保护
     end)
     if ok then
         print("[wxchg] configured NU1680: 1.4A, thermal protection off")
@@ -81,69 +83,28 @@ local function read_charge_current(fuel_dev)
     return current, soc
 end
 
--- ========== 显示通知 ==========
-local function show_banner(text, bg_r, bg_g, bg_b)
-    local panel_handle, io_handle, w, h, panel_if = bm.get_display_lcd_params("display_lcd")
-    if not panel_handle then
-        print("[wxchg] no display available, skip banner")
-        return
-    end
+-- ========== 振动通知（避开显示抢占问题）==========
+local VIBRATE_GPIO = 22  -- MetalioClaw4 振动马达 GPIO
 
-    -- 预先计算布局（pcall 外部，确保变量可见）
-    local bar_h = 52
-    local bar_y = math.floor((h - bar_h) / 2)
-    local bar_w = math.min(w - 40, 360)
-    local bar_x = math.floor((w - bar_w) / 2)
-    local pb_y = bar_y + bar_h - 2
-    local title_size = 22
-
-    local ok, err = pcall(function()
-        display.init(panel_handle, io_handle, w, h, panel_if)
-        display.begin_frame({ clear = true, r = 0, g = 0, b = 0 })
-
-        -- 背景条
-        display.fill_round_rect(bar_x, bar_y, bar_w, bar_h, 14, bg_r, bg_g, bg_b)
-
-        -- 标题文字
-        local tw, th = display.measure_text(text, { font_size = title_size })
-        local tx = math.floor((w - tw) / 2)
-        local ty = bar_y + math.floor((bar_h - th) / 2) - 2
-        display.draw_text(tx, ty, text, {
-            r = 255, g = 255, b = 255,
-            font_size = title_size,
-        })
-
-        display.present()
-
-        -- 进度条逐帧缩短
-        local frame_ms = 100
-        local total_frames = math.floor(BANNER_SECONDS * 1000 / frame_ms)
-        for i = 1, total_frames do
-            local progress = 1.0 - (i / total_frames)
-            local pb_w = math.floor(bar_w * progress)
-            if pb_w > 0 then
-                display.fill_rect(bar_x, pb_y, pb_w, 3, 72, 208, 235)
-                display.present()
-            end
-            delay.delay_ms(frame_ms)
-        end
-
-        display.end_frame()
+local function vibrate_ms(ms)
+    pcall(function()
+        local motor = gpio.new_out(VIBRATE_GPIO)
+        motor:set(1)
+        delay.delay_ms(ms)
+        motor:set(0)
     end)
-
-    if not ok then
-        print("[wxchg] banner failed:", err)
-    end
-
-    pcall(display.deinit)
 end
 
 local function show_charging_started()
-    show_banner("Charging Started", 32, 120, 48)
+    print("[wxchg] >>> CHARGING STARTED <<<")
+    vibrate_ms(200)
 end
 
 local function show_charging_complete()
-    show_banner("Charging Complete", 64, 140, 60)
+    print("[wxchg] >>> CHARGING COMPLETE <<<")
+    vibrate_ms(100)
+    delay.delay_ms(100)
+    vibrate_ms(100)
 end
 
 -- ========== 主循环 ==========
@@ -155,6 +116,10 @@ local function main()
     local bus = i2c.new(I2C_PORT, I2C_SDA, I2C_SCL, 400000)
     local nu1680_dev = bus:device(NU1680_ADDR, 0)
     local fuel_dev = bus:device(FUEL_GAUGE_ADDR, 0)
+
+    -- 验证 I2C 总线可用
+    local test_ok = pcall(function() fuel_dev:read(2, 0x08) end)
+    print("[wxchg] I2C bus test: " .. (test_ok and "OK" or "FAIL"))
     local noconfig_count = 0 -- 未配置计数（第一次探测到后立即配置）
 
     local state = STATE_IDLE
