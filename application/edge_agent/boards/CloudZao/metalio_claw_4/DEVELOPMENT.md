@@ -91,6 +91,7 @@
 | 蓝牙音频 Lua 模块 | 已完成 | `lua_module_bt_audio`，支持 local/pair/music 三种模式切换 |
 | BQ27220 电量计 | 已工作 | I2C 0x55, 纯 Lua 驱动 `lib_fuel_gauge`, 电压/电流/SOC 读取 |
 | SC7A20H 加速度计 | 已工作 | I2C 0x19, 纯 Lua 驱动 `lib_sc7a20h`, LIS2DH12 兼容, ±2g/100Hz |
+| QMC6309 磁力计 | 已工作 | I2C 0x7C, C 后端 `lua_module_magnetometer`, 硬铁校准 API |
 
 ### 2.3 已解决的关键问题
 
@@ -117,7 +118,7 @@
 |------|------|------|----------|----------|------|
 | 电量计 | BQ27220 | I2C | 0x55 | Lua I2C 驱动 | 电压/电流读取, 60 点滑动平均, 3.3V=0% / 4.2V=100% |
 | 无线充电 | NU1680 | I2C | 0x60 | Lua I2C 驱动 | 寄存器 0x1E 限流配置, 0x15 温度保护, 500ms 探测 |
-| 磁力计 | QMC6309 | I2C | 0x7C | Lua I2C 驱动 | Chip ID 0x00=0x90, X/Y/Z 数据 0x01-0x06 |
+| 磁力计 | QMC6309 | I2C | 0x7C | C 后端驱动 | Chip ID 0x00=0x90, X/Y/Z 数据 0x01-0x06 |
 | 加速度计 | SC7A20H | I2C | 0x19 | Lua I2C 驱动 | LIS2DH12 兼容, CTRL_REG1=0x20, CTRL_REG4=0x23, 中断=P1-1 |
 
 这四个设备均可通过 ESP-Claw 现有的 `lua_driver_i2c` 模块直接驱动, 无需修改 C 层代码。
@@ -156,8 +157,10 @@
   0x0A: CR1 (配置寄存器 1)
   0x0B: CR2 (配置寄存器 2)
 
-初始化序列 (每步 >=10ms):
-  suspend -> normal -> suspend -> continuous
+初始化序列 (每步 >=20ms):
+  suspend -> normal -> suspend -> continuous (CR2 写入 SET/RESET)
+
+**已完成**: C 后端驱动 (`lua_module_magnetometer`)，提供硬铁校准 API (`calibration_reset/add_sample/finish`)
 ```
 
 #### 3.4 SC7A20H 加速度计
@@ -247,7 +250,7 @@ UART: TX=GPIO28, RX=GPIO29, MRDY=GPIO13, SRDY=GPIO4
 
 - [x] BQ27220 电量计 Lua 驱动
 - [ ] NU1680 无线充电 Lua 驱动
-- [ ] QMC6309 磁力计 Lua 驱动
+- [x] QMC6309 磁力计 C 后端驱动
 - [x] SC7A20H 加速度计 Lua 驱动
 
 ### 阶段三: 通信外设
