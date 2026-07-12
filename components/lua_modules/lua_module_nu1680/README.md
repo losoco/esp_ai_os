@@ -21,7 +21,23 @@ local dev = nu1680.new({ port = 1, sda = 7, scl = 8 })
 dev:configure()  -- 1.4A + 关闭温度保护
 ```
 
-## 参考
+## 测试脚本
 
-- 芯片: NU1680 (I2C 0x60)
-- 参考实现: MetalioClaw4 `metalio-claw-4.cc` Wxcho class
+- `test/nu1680_read.lua` — 寄存器读写测试
+- `test/nu1680_autoconf.lua` — 后台自动配置 + 显示通知（适配器检测 → 配置 → 开始/完成充电提示）
+
+## autoconf 用法
+
+```bash
+# 后台运行（需先 push 到设备）
+esp-claw-cli push nu1680_autoconf.lua /inbox/nu1680_autoconf.lua
+esp-claw-cli run nu1680_autoconf.lua --timeout-ms 0  # timeout=0 = 不超时
+
+# 或从网页 Files 页面点 ▶ 运行
+```
+
+**状态机**:
+```
+IDLE ──(适配器接入)──→ CHARGING ──(充满/移除)──→ FULL ──(适配器移除)──→ IDLE
+      显示"开始充电"          显示"充电完成"              显示"充电完成"
+```

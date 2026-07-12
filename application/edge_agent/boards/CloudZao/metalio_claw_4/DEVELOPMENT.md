@@ -149,6 +149,8 @@
   - 在线时自动初始化寄存器
 
 **已完成**: 纯 Lua 驱动 (`lib_nu1680`)，支持 `configure` / `set_current_limit` / `get_current_limit`
+  + 闭环监控: `nu1680_autoconf.lua` 500ms 轮询 I2C 0x60，适配器接入自动配置 + 屏幕通知，
+    通过 BQ27220 电流检测充满状态
 ```
 
 #### 3.3 QMC6309 磁力计
