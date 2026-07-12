@@ -353,7 +353,7 @@ def _upload_and_resolve(host, port, local_file, remote_rel):
 def _run_lua_http(host, port, path, args_json=None, timeout_ms=0, poll_interval=1.5, max_wait=60):
     """POST /api/files/run then poll /api/files/run/<id> until done."""
     body = {"path": path}
-    if timeout_ms:
+    if timeout_ms is not None:
         body["timeout_ms"] = timeout_ms
     if args_json:
         body["args_json"] = args_json
@@ -432,7 +432,7 @@ def cmd_run(args):
         print(f"Uploading {args.script} → {remote_rel}")
         run_path = _upload_and_resolve(args.host, args.port, local, remote_rel)
 
-    timeout_ms = args.timeout_ms or 60000
+    timeout_ms = args.timeout_ms if args.timeout_ms is not None else 60000
     _run_lua_http(args.host, args.port, run_path,
                   args_json=args.args_json,
                   timeout_ms=timeout_ms,
@@ -617,7 +617,7 @@ def main():
     p_run.add_argument("script", help="Local Lua script path")
     p_run.add_argument("--no-upload", action="store_true", help="script is already a remote path")
     p_run.add_argument("--args-json", default=None, help="JSON arguments for the script")
-    p_run.add_argument("--timeout-ms", type=int, default=60000, help="Execution timeout in ms (default: 60000)")
+    p_run.add_argument("--timeout-ms", type=int, default=None, help="Execution timeout in ms (default: 60000, 0 = no timeout)")
     p_run.add_argument("--poll", type=float, default=1.5, help="Polling interval in seconds")
     p_run.add_argument("--wait", type=int, default=120, help="Maximum wait time in seconds")
 

@@ -42,35 +42,43 @@ local function probe_nu1680(i2c_dev)
     return ok
 end
 
--- ========== NU1680 配置 ==========
-local function configure_nu1680()
+-- ========== NU1680 配置（直接 I2C 写，避免 close 冲突）==========
+local function configure_nu1680(dev)
     local ok, err = pcall(function()
-        local nu1680 = require("lib_nu1680")
-        local dev = nu1680.new({ port = I2C_PORT, sda = I2C_SDA, scl = I2C_SCL })
-        dev:configure()
-        dev:close()
+        dev:write_byte(0x00, 0x1E)  -- MTP_ILIM_SET = 1.4A
+        dev:write_byte(0x00, 0x15)  -- 关闭温度保护
     end)
-    if not ok then
+    if ok then
+        print("[wxchg] configured NU1680: 1.4A, thermal protection off")
+    else
         print("[wxchg] configure failed:", err)
     end
     return ok
 end
 
--- ========== BQ27220 电流读取 ==========
-local function read_charge_current()
-    local ok, err = pcall(function()
-        local fuel = require("lib_fuel_gauge")
-        local gauge = fuel.new({ port = I2C_PORT, sda = I2C_SDA, scl = I2C_SCL, addr = FUEL_GAUGE_ADDR })
-        local current = gauge:get_current()
-        local soc = gauge:get_soc()
-        gauge:close()
-        return current, soc
+-- ========== BQ27220 电流读取（直接 I2C 读，避免 close 冲突）==========
+local function read_i16le(dev, reg)
+    local data = dev:read(2, reg)
+    local lo = string.byte(data, 1) or 0
+    local hi = string.byte(data, 2) or 0
+    local v = lo | (hi << 8)
+    if v >= 0x8000 then v = v - 0x10000 end
+    return v
+end
+
+local function read_charge_current(fuel_dev)
+    local ok, current, soc = pcall(function()
+        local cur = read_i16le(fuel_dev, 0x0C)  -- BQ27220 current register
+        local s = fuel_dev:read(2, 0x2C)        -- BQ27220 SOC register
+        local lo = string.byte(s, 1) or 0
+        local hi = string.byte(s, 2) or 0
+        return cur, lo | (hi << 8)
     end)
     if not ok then
-        print("[wxchg] fuel gauge read failed:", err)
+        print("[wxchg] fuel gauge read failed:", current)
         return nil, nil
     end
-    return ok
+    return current, soc
 end
 
 -- ========== 显示通知 ==========
@@ -146,6 +154,7 @@ local function main()
 
     local bus = i2c.new(I2C_PORT, I2C_SDA, I2C_SCL, 400000)
     local nu1680_dev = bus:device(NU1680_ADDR, 0)
+    local fuel_dev = bus:device(FUEL_GAUGE_ADDR, 0)
     local noconfig_count = 0 -- 未配置计数（第一次探测到后立即配置）
 
     local state = STATE_IDLE
@@ -162,7 +171,7 @@ local function main()
             print("[wxchg] wireless charger detected")
             noconfig_count = 0
             if state == STATE_IDLE or state == STATE_FULL then
-                configure_nu1680()
+                configure_nu1680(nu1680_dev)
                 state = STATE_CHARGING
                 print("[wxchg] STATE: IDLE/FULL → CHARGING")
                 show_charging_started()
@@ -179,7 +188,7 @@ local function main()
 
         -- 充电中: 检测电池是否充满
         if state == STATE_CHARGING and nu1680_present then
-            local current, soc = read_charge_current()
+            local current, soc = read_charge_current(fuel_dev)
             if current ~= nil then
                 -- 电流为正 = 充电中, 电流≈0 = 充满或未充电
                 if math.abs(current) < CHARGE_COMPLETE_THRESHOLD then
