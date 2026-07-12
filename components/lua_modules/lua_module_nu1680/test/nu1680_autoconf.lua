@@ -1,13 +1,17 @@
--- nu1680_autoconf.lua -- NU1680 无线充电自动检测
--- 使用 i2c.wrap(1) 复用系统已创建的 I2C 总线
--- 用法: esp-claw-cli run nu1680_autoconf.lua
-
+-- nu1680_autoconf.lua -- NU1680 无线充电自动检测 + 振动通知
 local i2c = require("i2c")
 local delay = require("delay")
+local bm    = require("board_manager")
 
-local NU1680_ADDR    = 0x60
+local NU1680_ADDR     = 0x60
 local FUEL_GAUGE_ADDR = 0x55
-local POLL_INTERVAL  = 500
+local POLL_INTERVAL   = 500
+
+local function vibrate(ms)
+    bm.set_ledc_duty("vibration_motor", 80)
+    delay.delay_ms(ms)
+    bm.set_ledc_duty("vibration_motor", 0)
+end
 
 local function main()
     print("[wxchg] starting with i2c.wrap(1)...")
@@ -15,10 +19,9 @@ local function main()
     local nu_dev = bus:device(NU1680_ADDR)
     local f_dev  = bus:device(FUEL_GAUGE_ADDR)
 
-    -- Verify I2C bus by reading fuel gauge
     local bus_ok = pcall(function() f_dev:read(2, 0x08) end)
     if not bus_ok then
-        print("[wxchg] I2C BUS FAIL — check board manager init")
+        print("[wxchg] I2C BUS FAIL")
         return
     end
     print("[wxchg] I2C bus OK")
@@ -29,23 +32,16 @@ local function main()
         local present = pcall(function() nu_dev:read(1, 0x1E) end)
 
         if present and not was_present then
-            print("[wxchg] DETECTED — configuring NU1680")
+            print("[wxchg] DETECTED — configuring")
             pcall(function() nu_dev:write(string.char(0), 0x1E) end)
             pcall(function() nu_dev:write(string.char(0), 0x15) end)
-
-            -- Read battery current
-            local cur_str = "?"
-            pcall(function()
-                local d = f_dev:read(2, 0x0C)
-                local lo = string.byte(d, 1) or 0
-                local hi = string.byte(d, 2) or 0
-                local v = lo | (hi << 8)
-                if v >= 0x8000 then v = v - 0x10000 end
-                cur_str = tostring(v) .. "mA"
-            end)
-            print("[wxchg] configured, battery current=" .. cur_str)
+            -- 长振动 = 充电开始
+            vibrate(400)
+            print("[wxchg] configured")
         elseif not present and was_present then
             print("[wxchg] REMOVED")
+            -- 短振动 2 次 = 充电移除
+            vibrate(100) delay.delay_ms(100) vibrate(100)
         end
 
         was_present = present

@@ -10,6 +10,8 @@
 #include "lauxlib.h"
 #include "esp_board_manager_includes.h"
 #include "cap_lua.h"
+#include "driver/ledc.h"
+#include "periph_ledc.h"
 
 #define LUA_BM_DISPLAY_PANEL_IF_IO        0
 #define LUA_BM_DISPLAY_PANEL_IF_RGB       1
@@ -453,6 +455,38 @@ static int lua_bm_get_camera_paths(lua_State *L)
 /* --------------------------------------------------------------------------
  * Module registration
  * -------------------------------------------------------------------------- */
+/**
+ * board_manager.set_ledc_duty(dev_name, percent) -> true | nil, errmsg
+ */
+static int lua_bm_set_ledc_duty(lua_State *L)
+{
+    const char *name = luaL_checkstring(L, 1);
+    int percent = (int)luaL_checkinteger(L, 2);
+    if (percent < 0 || percent > 100) {
+        return push_err(L, ESP_ERR_INVALID_ARG, "percent must be 0-100");
+    }
+
+    void *handle = NULL;
+    esp_err_t err = esp_board_manager_get_device_handle(name, &handle);
+    if (err != ESP_OK || !handle) {
+        return push_err(L, err, "ledc device not found");
+    }
+
+    periph_ledc_handle_t *ledc = (periph_ledc_handle_t *)handle;
+    uint32_t duty = (uint32_t)((percent * 1023U) / 100U);
+    err = ledc_set_duty(ledc->speed_mode, ledc->channel, duty);
+    if (err != ESP_OK) {
+        return push_err(L, err, "ledc_set_duty failed");
+    }
+    err = ledc_update_duty(ledc->speed_mode, ledc->channel);
+    if (err != ESP_OK) {
+        return push_err(L, err, "ledc_update_duty failed");
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 int luaopen_board_manager(lua_State *L)
 {
     static const luaL_Reg funcs[] = {
@@ -466,6 +500,7 @@ int luaopen_board_manager(lua_State *L)
         {"get_audio_codec_input_params", lua_bm_get_audio_codec_input_params},
         {"get_audio_codec_output_params", lua_bm_get_audio_codec_output_params},
         {"get_camera_paths",  lua_bm_get_camera_paths},
+        {"set_ledc_duty",     lua_bm_set_ledc_duty},
         {NULL, NULL},
     };
 
