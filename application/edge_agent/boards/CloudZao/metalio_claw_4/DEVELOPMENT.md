@@ -93,6 +93,8 @@
 | SC7A20H 加速度计 | 已工作 | I2C 0x19, 纯 Lua 驱动 `lib_sc7a20h`, LIS2DH12 兼容, ±2g/100Hz |
 | NU1680 无线充电 | 已工作 | I2C 0x60, 纯 Lua 驱动 `lib_nu1680`, 过流保护电流限制 + 温度保护 |
 | QMC6309 磁力计 | 已工作 | I2C 0x7C, C 后端 `lua_module_magnetometer`, 硬铁校准 API |
+| GPS | 已工作 | UART0 (TX=38, RX=37, 9600), 纯 Lua 驱动 `lib_gps`, NMEA 解析 (GGA/RMC/GSV) |
+| NT26 4G | 已工作 | UART1 (TX=28, RX=29, 2M), 纯 Lua AT 命令驱动 `lib_nt26`, 信号/IMEI/ICCID/基站查询 |
 
 ### 2.3 已解决的关键问题
 
@@ -183,21 +185,9 @@
 
 | 设备 | 芯片 | 接口 | 引脚 | 移植方式 | 备注 |
 |------|------|------|------|----------|------|
-| GPS | UART NMEA | UART | TX=38, RX=37 | Lua UART 驱动 | 9600 baud, NMEA-0183, 电源=TCA9555 P0-0 |
 | 蓝牙音频 | BTAudioCodec | UART2 + I2S | TX=26, RX=27 | Lua 模块 | 115200 baud, AT 命令, 三模式切换 (`lua_module_bt_audio` 已完成) |
 
-#### 3.5 GPS 模组
-
-```
-UART: TX=GPIO38, RX=GPIO37, 9600 baud, 8N1
-电源: TCA9555 P0-0 (GPS_POWER, 高有效)
-协议: NMEA-0183 (GGA / RMC / GSV)
-多星座: GP / GN / GL / GA / BD
-```
-
-可通过 `lua_driver_uart` 模块驱动, 配合 Lua NMEA 解析脚本实现。
-
-#### 3.6 蓝牙音频编解码器
+#### 3.5 蓝牙音频编解码器
 
 ```
 UART: TX=GPIO26, RX=GPIO27, UART2, 115200 baud
@@ -218,24 +208,17 @@ I2S: BCLK=12, WS=10, DOUT=9, DIN=11 (I2S_NUM_0, slave 模式)
 
 ### P2 - 需要完整协议栈 (高难度)
 
-| 设备 | 芯片 | 接口 | 引脚 | 移植方式 | 备注 |
-|------|------|------|------|----------|------|
-| 4G LTE 模组 | NT26 | UART + 流控 | TX=28, RX=29, MRDY=13, SRDY=4 | 自定义组件 | AT 命令, 拨号/挂断/基站定位, 复位=TCA9555 P0-7 |
-
-#### 3.7 NT26 4G 模组
-
-```
-UART: TX=GPIO28, RX=GPIO29, MRDY=GPIO13, SRDY=GPIO4
-复位: TCA9555 P0-7 (RST_4G, 高有效)
-
-功能:
-  - 拨号 (ATD) / 挂断 (ATH)
-  - 基站定位 (AT+ECBCINFO)
-  - WiFi 扫描定位 (AT+ECWIFISCAN)
-  - CEREG 注册状态查询
-
-封装: DualNetworkBoard (WiFi / 4G 切换)
-```
+> 4G LTE 模组基础 AT 命令接口已通过纯 Lua 驱动 `lib_nt26` 完成 (UART1, 2M baud)。
+> 完整 PPP/网络栈实现仍需 C 层支持，当前可通过 Lua AT 命令完成信号查询、IMEI/ICCID 读取、基站定位等基础功能。
+>
+> | 功能 | 状态 | 说明 |
+> |------|------|------|
+> | AT 命令通信 | 已完成 | `lib_nt26` 纯 Lua |
+> | 信号强度 / IMEI / ICCID | 已完成 | `lib_nt26` |
+> | 基站定位 (ECBCINFO) | 已完成 | `lib_nt26` |
+> | 拨号 / 挂断 | 已完成 | `lib_nt26` |
+> | PPP 网络拨号 | 待实现 | 需要 C 层 `esp_modem` 或自定义组件 |
+> | WiFi/4G 双网络切换 | 待实现 | 需要 `DualNetworkBoard` 封装 |
 
 ---
 
@@ -260,14 +243,15 @@ UART: TX=GPIO28, RX=GPIO29, MRDY=GPIO13, SRDY=GPIO4
 
 ### 阶段三: 通信外设
 
-- [ ] GPS Lua UART 驱动 + NMEA 解析
+- [x] GPS Lua UART 驱动 + NMEA 解析 (`lib_gps`)
 - [x] 蓝牙音频 Lua 模块 (AT 命令 + I2S)
-- [ ] NT26 4G 模组 C 组件 (AT 命令 + 流控)
+- [x] NT26 4G 模组基础 AT 命令接口 (`lib_nt26`)
 
 ### 阶段四: 系统集成
 
 - [ ] 音频通路集成 (I2S + 蓝牙音频编解码器)
 - [ ] 电源管理 (电量计 + 无线充电 + 软件关机)
+- [ ] NT26 PPP 网络拨号 (C 层 `esp_modem`)
 - [ ] 双网络切换 (WiFi / 4G)
 - [ ] 摄像头功能验证 (MIPI-CSI + OV2710)
 
@@ -284,7 +268,120 @@ idf.py -p PORT flash monitor
 
 ---
 
-## 六、参考文件
+## 六、调试方法
+
+### 6.1 Lua 脚本远程执行
+
+```bash
+# 单行代码执行
+esp-claw-cli exec "print('hello')"
+
+# 上传并运行脚本
+esp-claw-cli push test.lua /inbox/test.lua
+esp-claw-cli run /inbox/test.lua --no-upload --timeout-ms 0 --wait 10
+
+# 查看作业列表
+esp-claw-cli jobs
+# 停止作业
+esp-claw-cli stop <job_id>
+
+# 从设备下载文件（如日志）
+esp-claw-cli pull /inbox/wx_test.log /tmp/wx_test.log
+```
+
+### 6.2 I2C 设备探测
+
+```lua
+-- 复用系统已创建的 I2C 总线（新固件，推荐）
+local bus = i2c.wrap(1)
+
+-- 或创建新总线（引脚必须匹配 board_peripherals.yaml）
+local bus = i2c.new(1, 7, 8, 400000)
+
+-- 创建设备句柄
+local dev = bus:device(0x60)
+
+-- 读取寄存器（返回 Lua string）
+local data = dev:read(2, 0x08)  -- 读 2 字节从寄存器 0x08
+
+-- 写入寄存器
+dev:write(string.char(0x00), 0x1E)  -- 向 0x1E 写入 0x00
+
+-- 安全探测（设备可能不在线）
+if pcall(function() dev:read(1, 0x00) end) then
+    print("device present")
+else
+    print("device not found")
+end
+```
+
+### 6.3 通过文件获取完整日志
+
+作业状态 API 的 `recent_log` 只显示首行，输出会被截断。获取完整日志的方法：
+
+```lua
+-- 在脚本中将日志写入文件
+local f = io.open("/sdcard/inbox/wx_test.log", "w")
+f:write("...")
+f:close()
+
+-- 在主机上下载
+esp-claw-cli pull /inbox/wx_test.log /tmp/wx_test.log
+cat /tmp/wx_test.log
+```
+
+### 6.4 LEDC 振动马达控制
+
+```lua
+local bm = require("board_manager")
+
+-- 振动 200ms
+bm.set_ledc_duty("vibration_motor", 80)  -- 80% 占空比
+delay.delay_ms(200)
+bm.set_ledc_duty("vibration_motor", 0)   -- 停止
+```
+
+### 6.5 查看作业详细状态
+
+```bash
+curl -s http://192.168.8.100/api/files/run/<job_id> | python3 -m json.tool
+```
+
+关键字段：
+- `status`: running / completed / failed / stopped
+- `runtime_s`: 已运行秒数
+- `log_size`: 输出日志字节数（上限 4096）
+- `recent_log`: 压缩视图（只显示一行）
+
+### 6.6 已知问题
+
+| 问题 | 现象 | 原因 | 解决 |
+|------|------|------|------|
+| `i2c.new()` 在后台脚本中 I2C 操作失败 | 设备探测返回 false，但单独 exec 成功 | 旧版 I2C 驱动 API 与板级管理器冲突 | 使用 `i2c.wrap(port)` |
+| `gpio.new_out(22)` 控制振动马达失败 | `unknown error` | GPIO22 已被 LEDC 占用 | 使用 `bm.set_ledc_duty("vibration_motor", pct)` |
+| 作业输出日志被截断 | `recent_log` 只显示首行 | `cap_lua` 输出缓冲 4KB 且 `recent_log` 只取第一行 | 写入文件后用 `pull` 下载 |
+| NU1680 探测延迟 | 前 4 次探测失败，第 5 次成功 | 芯片上线需 ~2s | 后台轮询自动重试 |
+
+### 6.7 无线充电闭环测试流程
+
+```bash
+# 1. 上传并启动后台监控
+esp-claw-cli push nu1680_autoconf.lua /inbox/nu1680_autoconf.lua
+esp-claw-cli run /inbox/nu1680_autoconf.lua --no-upload --timeout-ms 0
+
+# 2. 放上充电器 → 应感到 400ms 长振动
+# 3. 取下充电器 → 应感到 2 次 100ms 短振动
+
+# 4. 查看是否在运行
+esp-claw-cli jobs | grep nu1680
+
+# 5. 停止
+esp-claw-cli stop <job_id>
+```
+
+---
+
+## 七、参考文件
 
 | 文件 | 用途 |
 |------|------|
