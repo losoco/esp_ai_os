@@ -273,7 +273,7 @@ esp_err_t http_server_register_files_run_routes(httpd_handle_t server)
         { .uri = "/api/files/run", .method = HTTP_POST, .handler = files_run_handler },
         { .uri = "/api/files/run/list", .method = HTTP_GET, .handler = files_run_list_handler },
         { .uri = "/api/files/run/*", .method = HTTP_GET, .handler = files_run_status_handler },
-        { .uri = "/api/files/run/*", .method = HTTP_POST, .handler = files_run_stop_handler },
+        { .uri = "/api/files/run/*/stop", .method = HTTP_POST, .handler = files_run_stop_handler },
     };
 
     for (size_t i = 0; i < sizeof(handlers) / sizeof(handlers[0]); ++i) {
