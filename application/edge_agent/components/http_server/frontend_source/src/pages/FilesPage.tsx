@@ -250,8 +250,9 @@ export const FilesPage: Component = () => {
       return;
     }
     if (!window.confirm(tf('fileDeleteConfirm', { path: entry.path }))) return;
+    const part = partition() === 'system' ? 'system' : undefined;
     try {
-      await deletePath(entry.path);
+      await deletePath(entry.path, { partition: part });
       pushToast(t('fileDeleteComplete') as string, 'success');
       await loadList();
     } catch (err) {
@@ -259,7 +260,7 @@ export const FilesPage: Component = () => {
       if (entry.is_dir && msg.includes('directory_not_empty')) {
         if (window.confirm(tf('fileDeleteDirNotEmpty', { path: entry.path }))) {
           try {
-            await deletePath(entry.path, { recursive: true });
+            await deletePath(entry.path, { recursive: true, partition: part });
             pushToast(t('fileDeleteComplete') as string, 'success');
             await loadList();
           } catch (err2) {

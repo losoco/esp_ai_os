@@ -302,7 +302,10 @@ static esp_err_t files_delete_handler(httpd_req_t *req)
     bool recursive = (strcmp(recursive_str, "1") == 0 || strcmp(recursive_str, "true") == 0);
 
     char full_path[HTTP_SERVER_PATH_MAX];
-    if (http_server_resolve_storage_path(relative_path, full_path, sizeof(full_path)) != ESP_OK) {
+    esp_err_t resolve_err = is_system_partition(req)
+        ? http_server_resolve_system_path(relative_path, full_path, sizeof(full_path))
+        : http_server_resolve_storage_path(relative_path, full_path, sizeof(full_path));
+    if (resolve_err != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");
     }
 

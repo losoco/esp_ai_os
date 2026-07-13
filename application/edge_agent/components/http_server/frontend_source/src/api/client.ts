@@ -298,10 +298,13 @@ export async function createFolder(path: string, options: { recursive?: boolean;
   );
 }
 
-export async function deletePath(path: string, options: { recursive?: boolean } = {}) {
+export async function deletePath(path: string, options: { recursive?: boolean; partition?: string } = {}) {
   let url = '/api/files?path=' + encodeURIComponent(path);
   if (options.recursive) {
     url += '&recursive=1';
+  }
+  if (options.partition) {
+    url += '&partition=' + encodeURIComponent(options.partition);
   }
   return request<unknown>(url, { method: 'DELETE' }, 'Failed to delete path');
 }
