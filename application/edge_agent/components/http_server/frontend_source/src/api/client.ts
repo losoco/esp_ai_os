@@ -91,6 +91,7 @@ export type StatusInfo = {
   ap_ip: string;
   wifi_mode: string;
   storage_base_path: string;
+  storage_write_locked: boolean;
 };
 
 export type CapabilityItem = {
@@ -228,17 +229,25 @@ export async function fetchLuaModules() {
   return Array.isArray(data.items) ? data.items : [];
 }
 
-export async function fetchFileList(path: string, signal?: AbortSignal) {
+export async function fetchFileList(path: string, signal?: AbortSignal, partition?: string) {
+  let url = '/api/files?path=' + encodeURIComponent(path);
+  if (partition) {
+    url += '&partition=' + encodeURIComponent(partition);
+  }
   const data = await request<{ path: string; entries: FileEntry[] }>(
-    '/api/files?path=' + encodeURIComponent(path),
+    url,
     { signal },
     'Failed to load file list',
   );
   return data;
 }
 
-export async function fetchFileContent(path: string, options: { allowMissing?: boolean } = {}) {
-  const response = await fetch('/files' + path, { cache: 'no-store' });
+export async function fetchFileContent(path: string, options: { allowMissing?: boolean; partition?: string } = {}) {
+  let url = '/files' + path;
+  if (options.partition) {
+    url += '?partition=' + encodeURIComponent(options.partition);
+  }
+  const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) {
     if (options.allowMissing && response.status === 404) {
       return { content: '', missing: true };
@@ -369,16 +378,17 @@ async function collectFiles(
   depth: number,
   result: CollectedFile[],
   signal?: AbortSignal,
+  partition?: string,
 ): Promise<void> {
   if (depth > TAR_MAX_DEPTH || result.length >= TAR_MAX_FILES) return;
   signal?.throwIfAborted();
-  const data = await fetchFileList(basePath, signal);
+  const data = await fetchFileList(basePath, signal, partition);
   for (const entry of data.entries ?? []) {
     signal?.throwIfAborted();
     if (result.length >= TAR_MAX_FILES) break;
     const name = prefix ? prefix + '/' + entry.name : entry.name;
     if (entry.is_dir) {
-      await collectFiles(entry.path, name, depth + 1, result, signal);
+      await collectFiles(entry.path, name, depth + 1, result, signal, partition);
     } else {
       result.push({ path: entry.path, relativeName: name, size: entry.size });
     }
@@ -389,9 +399,10 @@ export async function downloadFolderTar(
   path: string,
   onProgress?: (done: number, total: number) => void,
   signal?: AbortSignal,
+  partition?: string,
 ): Promise<Blob> {
   const files: CollectedFile[] = [];
-  await collectFiles(path, '', 1, files, signal);
+  await collectFiles(path, '', 1, files, signal, partition);
   if (files.length === 0) {
     throw new Error('No files found in directory');
   }
@@ -401,7 +412,11 @@ export async function downloadFolderTar(
 
   for (const [i, f] of files.entries()) {
     signal?.throwIfAborted();
-    const resp = await fetch('/files' + f.path, { cache: 'no-store', signal });
+    let url = '/files' + f.path;
+    if (partition) {
+      url += '?partition=' + encodeURIComponent(partition);
+    }
+    const resp = await fetch(url, { cache: 'no-store', signal });
     if (!resp.ok) throw new Error(`Failed to download ${f.path}`);
     const content: BlobBytes = new Uint8Array(await resp.arrayBuffer());
 

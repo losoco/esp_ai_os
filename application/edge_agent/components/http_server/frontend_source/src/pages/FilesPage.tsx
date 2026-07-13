@@ -8,11 +8,11 @@ import {
   downloadFolderTar,
   fetchFileContent,
   fetchFileList,
-  getLuaJobStatus,
-  runLuaFile,
   saveFileContent,
-  stopLuaJob,
   uploadFile,
+  runLuaFile,
+  getLuaJobStatus,
+  stopLuaJob,
   type FileEntry,
   type LuaJobInfo,
 } from '../api/client';
@@ -48,8 +48,12 @@ function isEditable(path: string): boolean {
   return EDITABLE_EXT.some((ext) => lower.endsWith(ext));
 }
 
-function downloadHref(path: string): string {
-  return '/files' + path;
+function downloadHref(path: string, part?: string): string {
+  let url = '/files' + path;
+  if (part === 'system') {
+    url += '?partition=system';
+  }
+  return url;
 }
 
 type EditorState = {
@@ -86,69 +90,19 @@ export const FilesPage: Component = () => {
   const [entries, setEntries] = createSignal<FileEntry[]>([]);
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
-  const [devMode, setDevMode] = createSignal(false);
+  const [devMode, setDevMode] = createSignal(true);
+  const [partition, setPartition] = createSignal<'storage' | 'system'>('storage');
   const [uploadPath, setUploadPath] = createSignal('');
   const [fileChosenName, setFileChosenName] = createSignal<string | null>(null);
   const [newFolderName, setNewFolderName] = createSignal('');
   let fileInputRef: HTMLInputElement | undefined;
   const [chosenFile, setChosenFile] = createSignal<File | null>(null);
 
-  const [runningJob, setRunningJob] = createSignal<LuaJobInfo | null>(null);
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
-
-  const pollJobStatus = async (jobId: string) => {
-    try {
-      const info = await getLuaJobStatus(jobId);
-      if (info.status === 'done' || info.status === 'failed' || info.status === 'timeout' || info.status === 'stopped') {
-        setRunningJob(null);
-        if (pollTimer) { clearInterval(pollTimer); pollTimer = undefined; }
-        const msg = info.status === 'done'
-          ? (t('fileLuaRunDone') as string)
-          : `${t('fileLuaRunStopped') as string} (${info.status})`;
-        pushToast(msg, info.status === 'done' ? 'success' : 'info');
-        await loadList();
-        return;
-      }
-      setRunningJob(info);
-    } catch {
-      setRunningJob(null);
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = undefined; }
-    }
-  };
-
-  const handleRunLua = async (entry: FileEntry) => {
-    if (runningJob()) {
-      pushToast(t('fileLuaAlreadyRunning') as string, 'error');
-      return;
-    }
-    try {
-      const info = await runLuaFile(entry.path);
-      if (info.job_id) {
-        setRunningJob(info);
-        pushToast(t('fileLuaRunStarted') as string, 'success');
-        pollTimer = setInterval(() => {
-          const job = runningJob();
-          if (job?.job_id) void pollJobStatus(job.job_id);
-        }, 2000);
-      }
-    } catch (err) {
-      pushToast((err as Error).message, 'error');
-    }
-  };
-
-  const handleStopLua = async () => {
-    const job = runningJob();
-    if (!job?.job_id) return;
-    try {
-      await stopLuaJob(job.job_id);
-      pushToast(t('fileLuaRunStopRequested') as string, 'info');
-    } catch (err) {
-      pushToast((err as Error).message, 'error');
-    }
-  };
-
   const [editor, setEditor] = createSignal<EditorState>(initialEditor);
   const [folderDownload, setFolderDownload] = createSignal<FolderDownloadState | null>(null);
+
+  const [runningJob, setRunningJob] = createSignal<LuaJobInfo | null>(null);
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
   const dirtyEditor = () => editor().open && editor().content !== editor().baseline;
 
@@ -162,7 +116,8 @@ export const FilesPage: Component = () => {
     setError(null);
     setLoading(true);
     try {
-      const data = await fetchFileList(currentPath());
+      const part = partition();
+      const data = await fetchFileList(currentPath(), undefined, part === 'system' ? 'system' : undefined);
       setCurrentPath(data.path || '/');
       setEntries(
         (data.entries ?? [])
@@ -178,14 +133,57 @@ export const FilesPage: Component = () => {
 
   createEffect(() => {
     void currentPath();
+    void partition();
     loadList();
   });
 
   const toggleDevMode = () => {
-    if (!devMode()) {
-      if (!window.confirm(t('fileDevModeConfirm') as string)) return;
-    }
     setDevMode(!devMode());
+  };
+
+  const togglePartition = () => {
+    setPartition((prev: 'storage' | 'system') => (prev === 'storage' ? 'system' : 'storage'));
+    setCurrentPath('/');
+  };
+
+  const pollJobStatus = async (jobId: string) => {
+    try {
+      const info = await getLuaJobStatus(jobId);
+      setRunningJob(info);
+      if (info.status === 'done' || info.status === 'failed' || info.status === 'stopped') {
+        clearInterval(pollTimer);
+        pollTimer = undefined;
+      }
+    } catch {
+      clearInterval(pollTimer);
+      pollTimer = undefined;
+      setRunningJob(null);
+    }
+  };
+
+  const handleRunLua = async (entry: FileEntry) => {
+    if (runningJob()) return;
+    try {
+      const result = await runLuaFile(entry.path, 0);
+      if (result.job_id) {
+        setRunningJob(result);
+        pollTimer = setInterval(() => pollJobStatus(result.job_id!), 2000);
+      }
+    } catch (err) {
+      pushToast((err as Error).message, 'error');
+    }
+  };
+
+  const handleStopLua = async () => {
+    const job = runningJob();
+    if (!job?.job_id) return;
+    try {
+      await stopLuaJob(job.job_id);
+    } catch (err) {
+      pushToast((err as Error).message, 'error');
+    }
+    clearInterval(pollTimer);
+    pollTimer = undefined;
   };
 
   const handleUpload = async () => {
@@ -269,7 +267,8 @@ export const FilesPage: Component = () => {
       readOnly: !devMode(),
     });
     try {
-      const { content } = await fetchFileContent(entry.path);
+      const part = partition();
+      const { content } = await fetchFileContent(entry.path, { partition: part === 'system' ? 'system' : undefined });
       setEditor((prev) => ({
         ...prev,
         content,
@@ -312,6 +311,7 @@ export const FilesPage: Component = () => {
       controller,
     });
     try {
+      const part = partition();
       const blob = await downloadFolderTar(
         entry.path,
         (done, total) => {
@@ -322,6 +322,7 @@ export const FilesPage: Component = () => {
           );
         },
         controller.signal,
+        part === 'system' ? 'system' : undefined,
       );
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -350,7 +351,8 @@ export const FilesPage: Component = () => {
     if (!state.path) return;
     setEditor({ ...state, loading: true, error: null });
     try {
-      const { content } = await fetchFileContent(state.path);
+      const part = partition();
+      const { content } = await fetchFileContent(state.path, { partition: part === 'system' ? 'system' : undefined });
       setEditor((prev) => ({
         ...prev,
         content,
@@ -395,6 +397,9 @@ export const FilesPage: Component = () => {
         title={t('navFiles') as string}
         actions={
           <div class="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="secondary" active={partition() === 'system'} onClick={togglePartition}>
+              {partition() === 'system' ? t('filePartitionSystem') : t('filePartitionStorage')}
+            </Button>
             <Button size="sm" variant="secondary" active={devMode()} onClick={toggleDevMode}>
               {devMode() ? t('fileDevModeOn') : t('fileDevMode')}
             </Button>
@@ -408,32 +413,6 @@ export const FilesPage: Component = () => {
         <div class="px-5 pt-4">
           <Banner kind="error" message={error() ?? undefined} />
         </div>
-      </Show>
-      <Show when={runningJob()}>
-        {(job) => (
-          <div class="px-5 pt-4">
-            <div class="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-accent)]/30 bg-[rgba(232,54,45,0.06)] px-4 py-2.5">
-              <div class="flex items-center gap-2 min-w-0 flex-1">
-                <span class="inline-block h-2 w-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-                <code class="text-[0.82rem] font-mono text-[var(--color-text-primary)] truncate">
-                  {job().path ?? job().job_id}
-                </code>
-                <span class="text-[0.76rem] text-[var(--color-text-muted)]">
-                  {job().status ?? 'running'} {job().runtime_s != null ? `${job().runtime_s}s` : ''}
-                </span>
-              </div>
-              <button
-                type="button"
-                class="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] hover:bg-[rgba(248,113,113,0.1)]"
-                onClick={() => void handleStopLua()}
-                title={t('fileLuaStop') as string}
-                aria-label={t('fileLuaStop') as string}
-              >
-                <Square class="h-4 w-4 shrink-0" />
-              </button>
-            </div>
-          </div>
-        )}
       </Show>
       <div class="px-5 pt-4 flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={goUp} disabled={currentPath() === '/'}>
@@ -490,6 +469,21 @@ export const FilesPage: Component = () => {
             {t('fileUpload')}
           </Button>
         </div>
+      </Show>
+
+      <Show when={runningJob()}>
+        {(job) => (
+          <div class="px-5 pt-3">
+            <Banner
+              kind="info"
+              message={
+                job().status === 'done'
+                  ? `Lua job ${job().job_id} completed in ${job().runtime_s ?? 0}s`
+                  : `Lua job ${job().job_id} (${job().status ?? 'running'}, ${job().runtime_s ?? 0}s)`
+              }
+            />
+          </div>
+        )}
       </Show>
 
       <div class="p-5">
@@ -552,7 +546,7 @@ export const FilesPage: Component = () => {
                             when={entry.is_dir}
                             fallback={
                               <a
-                                href={downloadHref(entry.path)}
+                                href={downloadHref(entry.path, partition() === 'system' ? 'system' : undefined)}
                                 target="_blank"
                                 rel="noopener"
                                 class="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-white hover:bg-white/[0.05]"
@@ -584,17 +578,17 @@ export const FilesPage: Component = () => {
                           >
                             <Trash2 class="h-4 w-4 shrink-0" />
                           </button>
-                          <Show when={!entry.is_dir && entry.path.toLowerCase().endsWith('.lua')}>
+                          <Show when={entry.name.toLowerCase().endsWith('.lua')}>
                             <Show
-                              when={runningJob()?.path === entry.path || runningJob()?.path?.endsWith?.(entry.path)}
+                              when={runningJob()}
                               fallback={
                                 <button
                                   type="button"
-                                  class="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-accent)] hover:bg-[rgba(232,54,45,0.08)] disabled:opacity-50 disabled:cursor-not-allowed"
-                                  disabled={runningJob() !== null}
+                                  class="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-success)] hover:bg-[rgba(16,185,129,0.08)] disabled:cursor-not-allowed disabled:opacity-50"
+                                  disabled={!devMode() || runningJob() !== null}
                                   onClick={() => void handleRunLua(entry)}
-                                  title={t('fileLuaRun') as string}
-                                  aria-label={t('fileLuaRun') as string}
+                                  title="Run Lua"
+                                  aria-label="Run Lua"
                                 >
                                   <Play class="h-4 w-4 shrink-0" />
                                 </button>
@@ -602,10 +596,10 @@ export const FilesPage: Component = () => {
                             >
                               <button
                                 type="button"
-                                class="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] hover:bg-[rgba(248,113,113,0.1)]"
-                                onClick={() => void handleStopLua()}
-                                title={t('fileLuaStop') as string}
-                                aria-label={t('fileLuaStop') as string}
+                                class="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] hover:bg-[rgba(248,113,113,0.08)]"
+                                onClick={handleStopLua}
+                                title="Stop Lua"
+                                aria-label="Stop Lua"
                               >
                                 <Square class="h-4 w-4 shrink-0" />
                               </button>

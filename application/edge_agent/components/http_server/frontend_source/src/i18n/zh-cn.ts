@@ -260,6 +260,8 @@ export const zhCn: Dict = {
   fileDevModeRequired: '请先启用开发者模式再修改文件。',
   fileDevModeConfirm:
     '进入开发者模式后，你可以上传、修改或删除文件。不正确的增删改可能导致系统无法正常运行、无限重启等问题。请注意合理修改。',
+  filePartitionStorage: '数据分区',
+  filePartitionSystem: '系统分区',
   fileDeleteConfirm: '确定删除 {path}？',
   fileDeleteDirNotEmpty: '文件夹 {path} 不为空，是否递归删除所有内容？此操作不可撤销。',
   fileDownloadFolder: '下载文件夹',

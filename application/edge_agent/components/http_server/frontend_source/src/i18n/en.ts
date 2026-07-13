@@ -266,6 +266,8 @@ export const en = {
   fileDevModeRequired: 'Enable Dev Mode to modify files.',
   fileDevModeConfirm:
     'After entering Dev Mode, you can upload, modify, or delete files. Incorrect changes may cause the system to fail, reboot endlessly, or behave unexpectedly. Please proceed carefully.',
+  filePartitionStorage: 'Data',
+  filePartitionSystem: 'System',
   fileDeleteConfirm: 'Delete {path}?',
   fileDeleteDirNotEmpty:
     'Directory {path} is not empty. Recursively delete all contents? This cannot be undone.',
