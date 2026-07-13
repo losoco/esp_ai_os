@@ -243,3 +243,37 @@ devices:
       tx_pin: 26
       rx_pin: 27
       baud_rate: 115200
+
+  # GPS Module (UART NMEA, TX=38, RX=37, 9600 baud)
+  # Power controlled by TCA9555 P0-0 (GPS_POWER, high=on).
+  # Pure Lua driver via lib_gps.lua; no C init needed.
+  - name: gps_module
+    chip: generic_gps
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    depends_on: gpio_expander_tca9555
+    config:
+      uart_num: 0
+      tx_pin: 38
+      rx_pin: 37
+      baud_rate: 9600
+
+  # NT26 4G LTE Modem (UART AT commands, TX=28, RX=29, 2M baud)
+  # Reset controlled by TCA9555 P0-7 (RST_4G, high=release).
+  # MRDY/SRDY flow control on GPIO13/GPIO4.
+  # Pure Lua driver via lib_nt26.lua; no C init needed.
+  # ponytail: AT commands + basic queries only; full PPP stack deferred to C layer.
+  - name: nt26_modem
+    chip: ml307
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    depends_on: gpio_expander_tca9555
+    config:
+      uart_num: 1
+      tx_pin: 28
+      rx_pin: 29
+      mrdy_pin: 13
+      srdy_pin: 4
+      baud_rate: 2000000

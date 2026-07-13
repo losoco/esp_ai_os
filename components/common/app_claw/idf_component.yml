@@ -286,6 +286,18 @@ dependencies:
       - if: $CONFIG{APP_CLAW_LUA_MODULE_BT_AUDIO} == True
     path: ../../lua_modules/lua_module_bt_audio
 
+  lua_module_gps:
+    rules:
+      - if: $CONFIG{APP_CLAW_CAP_LUA} == True
+      - if: $CONFIG{APP_CLAW_LUA_MODULE_GPS} == True
+    path: ../../lua_modules/lua_module_gps
+
+  lua_module_nt26:
+    rules:
+      - if: $CONFIG{APP_CLAW_CAP_LUA} == True
+      - if: $CONFIG{APP_CLAW_LUA_MODULE_NT26} == True
+    path: ../../lua_modules/lua_module_nt26
+
   lua_module_image:
     rules:
       - if: $CONFIG{APP_CLAW_CAP_LUA} == True
