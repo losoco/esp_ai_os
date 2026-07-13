@@ -45,12 +45,16 @@ esp_err_t http_server_init(const http_server_config_t *config)
     if (!config || !config->storage_base_path || config->storage_base_path[0] != '/') {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!config->system_base_path || config->system_base_path[0] != '/') {
+        return ESP_ERR_INVALID_ARG;
+    }
     if (!config->services.load_config || !config->services.save_config || !config->services.get_wifi_status) {
         return ESP_ERR_INVALID_ARG;
     }
 
     memset(&s_ctx, 0, sizeof(s_ctx));
     strlcpy(s_ctx.storage_base_path, config->storage_base_path, sizeof(s_ctx.storage_base_path));
+    strlcpy(s_ctx.system_base_path, config->system_base_path, sizeof(s_ctx.system_base_path));
     s_ctx.services = config->services;
     return ESP_OK;
 }

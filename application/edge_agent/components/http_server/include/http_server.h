@@ -47,10 +47,12 @@ typedef struct {
     esp_err_t (*wechat_login_get_status)(http_server_wechat_login_status_t *status);
     esp_err_t (*wechat_login_cancel)(void);
     esp_err_t (*wechat_login_mark_persisted)(void);
+    bool (*is_storage_write_locked)(void);
 } http_server_services_t;
 
 typedef struct {
     const char *storage_base_path;
+    const char *system_base_path;
     http_server_services_t services;
 } http_server_config_t;
 

@@ -42,8 +42,18 @@ static esp_err_t files_list_handler(httpd_req_t *req)
         strlcpy(relative_path, "/", sizeof(relative_path));
     }
 
+    char partition[16] = {0};
+    http_server_query_get(req, "partition", partition, sizeof(partition));
+    const bool is_system = (strcmp(partition, "system") == 0);
+
     char full_path[HTTP_SERVER_PATH_MAX];
-    if (http_server_resolve_storage_path(relative_path, full_path, sizeof(full_path)) != ESP_OK) {
+    esp_err_t err;
+    if (is_system) {
+        err = http_server_resolve_system_path(relative_path, full_path, sizeof(full_path));
+    } else {
+        err = http_server_resolve_storage_path(relative_path, full_path, sizeof(full_path));
+    }
+    if (err != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");
     }
 
@@ -74,7 +84,9 @@ static esp_err_t files_list_handler(httpd_req_t *req)
         char child_relative[HTTP_SERVER_PATH_MAX];
         char child_full[HTTP_SERVER_PATH_MAX];
         if (!http_server_build_child_relative_path(relative_path, entry->d_name, child_relative, sizeof(child_relative)) ||
-            http_server_resolve_storage_path(child_relative, child_full, sizeof(child_full)) != ESP_OK) {
+            (is_system
+                 ? http_server_resolve_system_path(child_relative, child_full, sizeof(child_full))
+                 : http_server_resolve_storage_path(child_relative, child_full, sizeof(child_full))) != ESP_OK) {
             continue;
         }
 
@@ -102,12 +114,34 @@ static esp_err_t files_list_handler(httpd_req_t *req)
 static esp_err_t file_download_handler(httpd_req_t *req)
 {
     const char *relative_path = req->uri + strlen("/files");
+
+    // Strip query string if present
+    char path_buf[HTTP_SERVER_PATH_MAX];
+    const char *qp = strchr(relative_path, '?');
+    if (qp) {
+        size_t len = qp - relative_path;
+        if (len >= sizeof(path_buf)) len = sizeof(path_buf) - 1;
+        memcpy(path_buf, relative_path, len);
+        path_buf[len] = '\0';
+        relative_path = path_buf;
+    }
+
     if (!http_server_path_is_safe(relative_path)) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");
     }
 
+    char partition[16] = {0};
+    http_server_query_get(req, "partition", partition, sizeof(partition));
+    const bool is_system = (strcmp(partition, "system") == 0);
+
     char full_path[HTTP_SERVER_PATH_MAX];
-    if (http_server_resolve_storage_path(relative_path, full_path, sizeof(full_path)) != ESP_OK) {
+    esp_err_t err;
+    if (is_system) {
+        err = http_server_resolve_system_path(relative_path, full_path, sizeof(full_path));
+    } else {
+        err = http_server_resolve_storage_path(relative_path, full_path, sizeof(full_path));
+    }
+    if (err != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");
     }
 
@@ -132,23 +166,7 @@ static esp_err_t file_download_handler(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, max-age=0");
     while (!feof(file)) {
         size_t read_bytes = fread(scratch, 1, HTTP_SERVER_SCRATCH_SIZE, file);
-        if (read_bytes == 0) {
-            /* fread returned 0: either clean EOF or a hard read error, which
-             * also leaves feof() false and would otherwise spin forever and pin
-             * this worker plus its scratch buffer. On a genuine read error,
-             * leave the chunked stream unterminated and return ESP_FAIL so the
-             * server aborts the connection: the client then sees a broken
-             * transfer instead of a cleanly finished but silently truncated
-             * file. (Headers may already be on the wire; aborting is still the
-             * most honest signal we can give.) Clean EOF just ends the loop. */
-            if (ferror(file)) {
-                free(scratch);
-                fclose(file);
-                return ESP_FAIL;
-            }
-            break;
-        }
-        if (httpd_resp_send_chunk(req, scratch, read_bytes) != ESP_OK) {
+        if (read_bytes > 0 && httpd_resp_send_chunk(req, scratch, read_bytes) != ESP_OK) {
             free(scratch);
             fclose(file);
             return ESP_FAIL;
@@ -160,8 +178,34 @@ static esp_err_t file_download_handler(httpd_req_t *req)
     return httpd_resp_send_chunk(req, NULL, 0);
 }
 
+static bool is_system_partition(httpd_req_t *req)
+{
+    char partition[16] = {0};
+    http_server_query_get(req, "partition", partition, sizeof(partition));
+    return (strcmp(partition, "system") == 0);
+}
+
+static bool storage_write_locked(void)
+{
+    http_server_ctx_t *ctx = http_server_ctx();
+    return ctx->services.is_storage_write_locked && ctx->services.is_storage_write_locked();
+}
+
+static esp_err_t reject_storage_write_locked(httpd_req_t *req)
+{
+    httpd_resp_set_status(req, "423 Locked");
+    return httpd_resp_sendstr(req, "SD card is exported over USB");
+}
+
 static esp_err_t files_upload_handler(httpd_req_t *req)
 {
+    if (storage_write_locked()) {
+        return reject_storage_write_locked(req);
+    }
+    // if (is_system_partition(req)) {
+    //     return httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "System partition is read-only");
+    // }
+
     char relative_path[HTTP_SERVER_PATH_MAX] = {0};
     if (http_server_query_get(req, "path", relative_path, sizeof(relative_path)) != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing path");
@@ -248,6 +292,10 @@ static int rmdir_recursive(const char *path)
 
 static esp_err_t files_delete_handler(httpd_req_t *req)
 {
+    // if (is_system_partition(req)) {
+    //     return httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "System partition is read-only");
+    // }
+
     char relative_path[HTTP_SERVER_PATH_MAX] = {0};
     if (http_server_query_get(req, "path", relative_path, sizeof(relative_path)) != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing path");
@@ -308,6 +356,13 @@ static esp_err_t files_delete_handler(httpd_req_t *req)
 
 static esp_err_t files_mkdir_handler(httpd_req_t *req)
 {
+    if (storage_write_locked()) {
+        return reject_storage_write_locked(req);
+    }
+    // if (is_system_partition(req)) {
+    //     return httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "System partition is read-only");
+    // }
+
     cJSON *root = NULL;
     if (http_server_parse_json_body(req, &root) != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON body");

@@ -21,6 +21,7 @@
 typedef struct {
     httpd_handle_t server;
     char storage_base_path[HTTP_SERVER_PATH_MAX];
+    char system_base_path[HTTP_SERVER_PATH_MAX];
     http_server_services_t services;
 } http_server_ctx_t;
 
@@ -39,6 +40,7 @@ esp_err_t http_server_send_json_response(httpd_req_t *req, cJSON *root);
 esp_err_t http_server_parse_json_body(httpd_req_t *req, cJSON **out_root);
 void http_server_json_read_string(cJSON *root, const char *key, char *buffer, size_t buffer_size);
 esp_err_t http_server_resolve_storage_path(const char *relative_path, char *full_path, size_t full_path_size);
+esp_err_t http_server_resolve_system_path(const char *relative_path, char *full_path, size_t full_path_size);
 bool http_server_build_child_relative_path(const char *base_path,
                                            const char *entry_name,
                                            char *out_path,

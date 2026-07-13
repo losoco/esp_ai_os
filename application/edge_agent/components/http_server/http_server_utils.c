@@ -112,6 +112,18 @@ esp_err_t http_server_resolve_storage_path(const char *relative_path, char *full
     return (written <= 0 || (size_t)written >= full_path_size) ? ESP_ERR_INVALID_SIZE : ESP_OK;
 }
 
+esp_err_t http_server_resolve_system_path(const char *relative_path, char *full_path, size_t full_path_size)
+{
+    http_server_ctx_t *ctx = http_server_ctx();
+
+    if (!http_server_path_is_safe(relative_path)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    int written = snprintf(full_path, full_path_size, "%s%s", ctx->system_base_path, relative_path);
+    return (written <= 0 || (size_t)written >= full_path_size) ? ESP_ERR_INVALID_SIZE : ESP_OK;
+}
+
 bool http_server_build_child_relative_path(const char *base_path,
                                            const char *entry_name,
                                            char *out_path,
