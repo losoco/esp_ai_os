@@ -27,6 +27,15 @@ export const zhCn: Dict = {
   navLuaModules: 'Lua 模块管理',
   navFiles: '文件管理',
   navWebIm: '在线聊天',
+  navTerminal: '终端',
+
+  terminalDesc: '实时串口日志输出和命令执行。',
+  terminalConnected: '已连接',
+  terminalDisconnected: '未连接',
+  terminalClear: '清屏',
+  terminalEmpty: '等待输出...',
+  terminalInputPlaceholder: '输入命令并按回车执行...',
+  terminalSend: '发送',
 
   webimDesc: '通过 WebSocket 与 ESP-Claw 实时互动。',
   webimSend: '发送',

@@ -25,6 +25,15 @@ export const en = {
   navLuaModules: 'Lua Modules',
   navFiles: 'Files',
   navWebIm: 'Web Chat',
+  navTerminal: 'Terminal',
+
+  terminalDesc: 'Real-time serial log output and command execution.',
+  terminalConnected: 'Connected',
+  terminalDisconnected: 'Disconnected',
+  terminalClear: 'Clear',
+  terminalEmpty: 'Waiting for output...',
+  terminalInputPlaceholder: 'Enter command and press Enter...',
+  terminalSend: 'Send',
 
   webimDesc: 'Interact with ESP-Claw in real time via WebSocket.',
   webimSend: 'Send',
