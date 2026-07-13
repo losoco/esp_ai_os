@@ -108,6 +108,8 @@
 | BT 模块不提供 I2S 时钟 | 蓝牙芯片上电后未收到 AT 命令, 未进入接收模式 | `setup_device.c` 添加 `bt_module_mode_init_task` 发送 `AT+RX=2` (700ms) `AT+MODE=1` |
 | `esp-claw.local` 无法访问 | mDNS 服务未初始化 | `main.c` 添加 `mdns_init()` + `mdns_hostname_set("esp-claw")` |
 | 摄像头初始化失败 `ESP_ERR_NOT_FOUND` | 缺少 XCLK 时钟配置 + CAM_PWDN 初始电平错误(高=断电) | 添加 XCLK 配置(GPIO32@24MHz) + 修改 CAM_PWDN 初始电平为低(通电) |
+| `/system` 分区烧录后为空 | `fatfs_create_rawflash_image` 生成原始 FAT 镜像, 与 `esp_vfs_fat_spiflash_mount_rw_wl` 的 WL 格式不兼容, 挂载失败后 `format_if_mount_failed=true` 格式化清空 | `CMakeLists.txt` 改用 `fatfs_create_spiflash_image` (WL 兼容镜像) |
+| Web UI 删除 system 分区文件提示 "Path not found" | 删除处理器只调用 `http_server_resolve_storage_path`, 未处理 partition 参数 | 后端添加 partition 路由, 前端 `deletePath` 传递 partition |
 
 ---
 
@@ -272,26 +274,26 @@ idf.py bmgr -c ./boards -b metalio_claw_4
 idf.py build
 
 # 3. 烧录（端口可能变动，用 ls /dev/cu.usbmodem* 确认）
-idf.py -p /dev/cu.usbmodem31101 flash
+idf.py -p /dev/cu.usbmodem113101 flash
 
 # 4. 串口监视（可选）
-idf.py -p /dev/cu.usbmodem31101 monitor
+idf.py -p /dev/cu.usbmodem113101 monitor
 ```
 
 ### 常用组合
 
 ```bash
 # 一键编译+烧录+监视
-idf.py bmgr -c ./boards -b metalio_claw_4 && idf.py build && idf.py -p /dev/cu.usbmodem31101 flash monitor
+idf.py bmgr -c ./boards -b metalio_claw_4 && idf.py build && idf.py -p /dev/cu.usbmodem113101 flash monitor
 
 # 增量编译（板卡未变时跳过 bmgr）
-idf.py build && idf.py -p /dev/cu.usbmodem31101 flash
+idf.py build && idf.py -p /dev/cu.usbmodem113101 flash
 ```
 
 ### 板卡未变时的最简流程
 
 ```bash
-idf.py build && idf.py -p /dev/cu.usbmodem31101 flash
+idf.py build && idf.py -p /dev/cu.usbmodem113101 flash
 ```
 
 > **端口查找**：`ls /dev/cu.usbmodem*` 查看实际端口号。
@@ -399,8 +401,8 @@ curl -s http://192.168.8.100/api/files/run/<job_id> | python3 -m json.tool
 esp-claw-cli push nu1680_autoconf.lua /inbox/nu1680_autoconf.lua
 esp-claw-cli run /inbox/nu1680_autoconf.lua --no-upload --timeout-ms 0
 
-# 2. 放上充电器 → 应感到 400ms 长振动
-# 3. 取下充电器 → 应感到 2 次 100ms 短振动
+# 2. 放上充电器 -> 应感到 400ms 长振动
+# 3. 取下充电器 -> 应感到 2 次 100ms 短振动
 
 # 4. 查看是否在运行
 esp-claw-cli jobs | grep nu1680
@@ -408,6 +410,41 @@ esp-claw-cli jobs | grep nu1680
 # 5. 停止
 esp-claw-cli stop <job_id>
 ```
+
+### 6.8 Web 终端
+
+固件内置 Web 终端，可通过浏览器实时查看串口日志和执行命令。
+
+**访问方式**：浏览器打开 `http://esp-claw.local/#terminal`
+
+**功能**：
+- 实时显示 ESP_LOG 日志输出（所有 `ESP_LOGI/W/E` 消息）
+- 输入框输入命令并按回车执行（通过 `esp_console_run`）
+- 连接状态指示灯（绿色=已连接，红色=未连接）
+- 清屏按钮
+- WebSocket 断线自动重连（3秒延迟）
+
+**实现机制**：
+- 后端：WebSocket 端点 `/ws/terminal`，通过 `esp_log_set_vprintf` 钩子捕获日志
+- vprintf hook 延迟安装：首个客户端连接时安装，全部断开时恢复原始 hook（不打开终端页面时零开销）
+- 8KB 环形缓冲区延迟分配，无客户端时不占用堆内存
+- 前端：SolidJS 终端页面，黑底绿字经典终端风格
+
+### 6.9 Web 文件管理
+
+**访问方式**：浏览器打开 `http://esp-claw.local/#files`
+
+**功能**：
+- 浏览 system 和 storage 两个分区（顶部切换按钮）
+- 上传/下载文件、创建文件夹、删除文件/文件夹
+- 在线编辑文本文件
+- 运行/停止 Lua 脚本（带作业状态横幅）
+- 下载文件夹为 tar 包
+
+**注意事项**：
+- system 分区已改为可读写（WL 磨损均衡），修改内容重启后保留
+- 删除文件夹时如有子内容，会提示是否递归删除
+- Lua 脚本运行时，同一时间只能运行一个脚本，其他脚本显示禁用状态
 
 ---
 
