@@ -110,6 +110,8 @@
 | 摄像头初始化失败 `ESP_ERR_NOT_FOUND` | 缺少 XCLK 时钟配置 + CAM_PWDN 初始电平错误(高=断电) | 添加 XCLK 配置(GPIO32@24MHz) + 修改 CAM_PWDN 初始电平为低(通电) |
 | `/system` 分区烧录后为空 | `fatfs_create_rawflash_image` 生成原始 FAT 镜像, 与 `esp_vfs_fat_spiflash_mount_rw_wl` 的 WL 格式不兼容, 挂载失败后 `format_if_mount_failed=true` 格式化清空 | `CMakeLists.txt` 改用 `fatfs_create_spiflash_image` (WL 兼容镜像) |
 | Web UI 删除 system 分区文件提示 "Path not found" | 删除处理器只调用 `http_server_resolve_storage_path`, 未处理 partition 参数 | 后端添加 partition 路由, 前端 `deletePath` 传递 partition |
+| GPS NMEA 解析器字段错位 | `talker_id` 长度检查 `< 6` 但 `"GPGGA"` 仅 5 字符; `sub(4)` 提取句型多去一位; GSV 卫星数取 `fields[3]` (msg_num) 而非 `fields[4]` | 修正为 `#talker_id < 5`、`sub(3)`、`fields[4]` |
+| NMEA 空字段导致索引偏移 | `gmatch("[^,]+")` 跳过空字段, 后续字段索引全部错位 | 改用 `gmatch("([^,]*),")` 保留空字段 |
 
 ---
 
@@ -220,7 +222,36 @@ I2S: BCLK=12, WS=10, DOUT=9, DIN=11 (I2S_NUM_0, slave 模式)
 > | 基站定位 (ECBCINFO) | 已完成 | `lib_nt26` |
 > | 拨号 / 挂断 | 已完成 | `lib_nt26` |
 > | PPP 网络拨号 | 待实现 | 需要 C 层 `esp_modem` 或自定义组件 |
-> | WiFi/4G 双网络切换 | 待实现 | 需要 `DualNetworkBoard` 封装 |
+> | WiFi/4G 双网络切换 | 待实现 | 需要 `DualNetwork` 封装 |
+
+#### 3.6 GPS (NMEA-0183)
+
+```
+UART: TX=GPIO38, RX=GPIO37, UART0, 9600 baud
+电源: TCA9555 P0-0 (高有效)
+
+驱动: lib_gps (纯 Lua, 237 行)
+支持句型: GGA (位置/定位质量), RMC (速度/日期), GSV (可视卫星)
+多 talker: GP (GPS), GL (GLONASS), GA (Galileo), BD (BeiDou), GN (混合)
+```
+
+**API**:
+
+| 方法 | 说明 |
+|------|------|
+| `gps.new({port, tx, rx, baud, bus})` | 创建解析器, `bus` 可传入已有 UART 句柄 |
+| `handle:poll() -> int` | 轮询 UART RX, 解析完整 NMEA 句子, 返回处理行数 |
+| `handle:get_snapshot() -> table` | 返回当前位置/速度/卫星快照 |
+| `handle:close()` | 释放 UART 资源 |
+
+`get_snapshot()` 返回字段: `fix_valid`, `fix_quality`, `latitude_deg`, `longitude_deg`, `altitude_m`, `speed_kmh`, `satellites_used`, `satellites_view`, `hdop`, `utc_time` ("HH:MM:SS"), `utc_date` ("YYYY-MM-DD"), `sentence_count`, `bytes_received`
+
+**NMEA 解析器实现要点**:
+- 校验和验证: `$` 与 `*` 之间字节 XOR, 与 `*` 后两位十六进制比较
+- 坐标转换: `DDMM.mmmm` / `DDDMM.mmmm` -> 十进制度数
+- GSV 多 talker 累加: 各 talker (GP/GL/GA/BD/GN) 的可视卫星数独立记录后求和
+- 空字段保留: `gmatch("([^,]*),")` 确保 `,,` 之间空字段不丢失
+- 轮询模型: `poll()` 每次最多处理 100 行, 防止数据洪泛阻塞
 
 ---
 
@@ -445,6 +476,30 @@ esp-claw-cli stop <job_id>
 - system 分区已改为可读写（WL 磨损均衡），修改内容重启后保留
 - 删除文件夹时如有子内容，会提示是否递归删除
 - Lua 脚本运行时，同一时间只能运行一个脚本，其他脚本显示禁用状态
+
+### 6.10 GPS 测试
+
+```bash
+# 1. 单元测试（本地，无需设备，需 lua5.4）
+cd components/lua_modules/lua_module_gps
+lua5.4 test/test_gps_nmea.lua
+# 预期输出: "=== All GPS NMEA tests passed ==="
+# 测试覆盖: GGA 位置解析、RMC 速度/日期、GSV 卫星数、坏校验和跳过、GLONASS talker
+
+# 2. 设备端测试（自动控制 GPS 电源，30s 轮询，日志写入文件）
+esp-claw-cli push test/gps_device_test.lua /inbox/gps_device_test.lua
+esp-claw-cli run /inbox/gps_device_test.lua --no-upload --timeout-ms 0 --wait 35
+
+# 3. 下载日志查看完整输出
+esp-claw-cli pull /inbox/gps_test.log /tmp/gps_test.log
+cat /tmp/gps_test.log
+```
+
+设备端测试脚本 (`gps_device_test.lua`) 会自动:
+- 通过 TCA9555 P0-0 打开 GPS 电源
+- 轮询 UART0 读取 NMEA 数据（每秒一次，持续 30 秒）
+- 输出快照到 `/inbox/gps_test.log` 和串口
+- 测试结束后关闭 GPS 电源
 
 ---
 
