@@ -257,14 +257,44 @@ I2S: BCLK=12, WS=10, DOUT=9, DIN=11 (I2S_NUM_0, slave 模式)
 
 ---
 
-## 五、构建命令
+## 五、构建与烧录
+
+### 基础命令
 
 ```bash
+# 进入工程目录
 cd application/edge_agent
+
+# 1. 选择板卡（首次或切换板卡时执行一次）
 idf.py bmgr -c ./boards -b metalio_claw_4
+
+# 2. 编译
 idf.py build
-idf.py -p PORT flash monitor
+
+# 3. 烧录（端口可能变动，用 ls /dev/cu.usbmodem* 确认）
+idf.py -p /dev/cu.usbmodem31101 flash
+
+# 4. 串口监视（可选）
+idf.py -p /dev/cu.usbmodem31101 monitor
 ```
+
+### 常用组合
+
+```bash
+# 一键编译+烧录+监视
+idf.py bmgr -c ./boards -b metalio_claw_4 && idf.py build && idf.py -p /dev/cu.usbmodem31101 flash monitor
+
+# 增量编译（板卡未变时跳过 bmgr）
+idf.py build && idf.py -p /dev/cu.usbmodem31101 flash
+```
+
+### 板卡未变时的最简流程
+
+```bash
+idf.py build && idf.py -p /dev/cu.usbmodem31101 flash
+```
+
+> **端口查找**：`ls /dev/cu.usbmodem*` 查看实际端口号。
 
 ---
 
