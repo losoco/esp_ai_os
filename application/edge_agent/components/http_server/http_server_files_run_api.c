@@ -22,9 +22,15 @@ static esp_err_t files_run_handler(httpd_req_t *req)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing path");
     }
 
-    /* Resolve relative path through the storage resolver (handles / → /sdcard prefix) */
+    /* Resolve relative path — use system partition if requested */
+    cJSON *partition_item = cJSON_GetObjectItemCaseSensitive(root, "partition");
+    const bool use_system = cJSON_IsString(partition_item) && strcmp(partition_item->valuestring, "system") == 0;
+
     char resolved_path[256] = {0};
-    if (http_server_resolve_storage_path(path_item->valuestring, resolved_path, sizeof(resolved_path)) != ESP_OK) {
+    esp_err_t resolve_err = use_system
+        ? http_server_resolve_system_path(path_item->valuestring, resolved_path, sizeof(resolved_path))
+        : http_server_resolve_storage_path(path_item->valuestring, resolved_path, sizeof(resolved_path));
+    if (resolve_err != ESP_OK) {
         cJSON_Delete(root);
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");
     }

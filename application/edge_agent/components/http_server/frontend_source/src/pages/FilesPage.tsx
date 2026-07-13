@@ -164,7 +164,8 @@ export const FilesPage: Component = () => {
   const handleRunLua = async (entry: FileEntry) => {
     if (runningJob()) return;
     try {
-      const result = await runLuaFile(entry.path, 0);
+      const part = partition();
+      const result = await runLuaFile(entry.path, 0, undefined, part === 'system' ? 'system' : undefined);
       if (result.job_id) {
         setRunningJob(result);
         pollTimer = setInterval(() => pollJobStatus(result.job_id!), 2000);

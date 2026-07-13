@@ -311,7 +311,7 @@ export type LuaJobInfo = {
   error?: string;
 };
 
-export async function runLuaFile(path: string, timeoutMs?: number, argsJson?: string) {
+export async function runLuaFile(path: string, timeoutMs?: number, argsJson?: string, partition?: string) {
   return request<LuaJobInfo>(
     '/api/files/run',
     {
@@ -321,6 +321,7 @@ export async function runLuaFile(path: string, timeoutMs?: number, argsJson?: st
         path,
         timeout_ms: timeoutMs ?? 0,
         args_json: argsJson,
+        partition,
       }),
     },
     'Failed to run Lua file',
@@ -337,7 +338,7 @@ export async function getLuaJobStatus(jobId: string) {
 
 export async function stopLuaJob(jobId: string) {
   return request<LuaJobInfo>(
-    '/api/files/run/' + encodeURIComponent(jobId) + '/stop',
+    '/api/files/run/' + encodeURIComponent(jobId),
     { method: 'POST' },
     'Failed to stop job',
   );
