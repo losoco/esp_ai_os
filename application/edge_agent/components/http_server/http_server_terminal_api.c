@@ -29,16 +29,48 @@ static int               s_ws_fds[TERM_WS_MAX_CLIENTS];
 static size_t            s_ws_count;
 
 /* Ring buffer for log backlog (sent to clients on connect) */
-static char              s_ring_buf[TERM_RING_BUF_SIZE];
+static char             *s_ring_buf;
 static size_t            s_ring_write;
 static size_t            s_ring_len;
 static SemaphoreHandle_t s_ring_mx;
 
-/* Log hook */
+/* Log hook - lazily installed when first client connects */
 static vprintf_like_t    s_orig_vprintf;
+static volatile bool     s_hook_active;
 
 /* Command execution mutex (serializes stdout redirect) */
 static SemaphoreHandle_t s_cmd_mx;
+
+/* ---- Hook install / uninstall ---- */
+
+static int term_log_vprintf(const char *fmt, va_list args);
+
+static void term_hook_install(void)
+{
+    if (s_hook_active) {
+        return;
+    }
+    if (!s_ring_buf) {
+        s_ring_buf = malloc(TERM_RING_BUF_SIZE);
+        if (!s_ring_buf) {
+            ESP_LOGE(TAG, "failed to allocate ring buffer");
+            return;
+        }
+    }
+    s_orig_vprintf = esp_log_set_vprintf(term_log_vprintf);
+    s_hook_active = true;
+    ESP_LOGI(TAG, "log vprintf hook installed");
+}
+
+static void term_hook_uninstall(void)
+{
+    if (!s_hook_active) {
+        return;
+    }
+    esp_log_set_vprintf(s_orig_vprintf);
+    s_hook_active = false;
+    ESP_LOGI(TAG, "log vprintf hook removed");
+}
 
 /* ---- WS fd management ---- */
 
@@ -55,6 +87,11 @@ static void term_ws_fd_add(int fd)
         s_ws_fds[s_ws_count++] = fd;
     }
     xSemaphoreGive(s_ws_mx);
+
+    /* Install log hook when first client connects */
+    if (s_ws_count == 1) {
+        term_hook_install();
+    }
 }
 
 void http_server_terminal_ws_fd_remove(int fd)
@@ -71,6 +108,11 @@ void http_server_terminal_ws_fd_remove(int fd)
     }
     s_ws_count = w;
     xSemaphoreGive(s_ws_mx);
+
+    /* Uninstall log hook when last client disconnects */
+    if (s_ws_count == 0) {
+        term_hook_uninstall();
+    }
 }
 
 static size_t term_collect_fds(int *out_fds)
@@ -101,6 +143,9 @@ static size_t term_collect_fds(int *out_fds)
 
 static void term_ring_write(const char *data, size_t len)
 {
+    if (!s_ring_buf || len == 0) {
+        return;
+    }
     if (len > TERM_RING_BUF_SIZE) {
         data += len - TERM_RING_BUF_SIZE;
         len = TERM_RING_BUF_SIZE;
@@ -121,27 +166,6 @@ static void term_ring_write(const char *data, size_t len)
         s_ring_len += len;
     }
     xSemaphoreGive(s_ring_mx);
-}
-
-static char *term_ring_read(size_t *out_len)
-{
-    xSemaphoreTake(s_ring_mx, portMAX_DELAY);
-    size_t len = s_ring_len;
-    char *buf = malloc(len + 1);
-    if (buf) {
-        if (len < TERM_RING_BUF_SIZE) {
-            memcpy(buf, s_ring_buf, len);
-        } else {
-            size_t start = s_ring_write;
-            size_t first = TERM_RING_BUF_SIZE - start;
-            memcpy(buf, s_ring_buf + start, first);
-            memcpy(buf + first, s_ring_buf, len - first);
-        }
-        buf[len] = '\0';
-    }
-    *out_len = len;
-    xSemaphoreGive(s_ring_mx);
-    return buf;
 }
 
 /* ---- Broadcast ---- */
@@ -214,13 +238,21 @@ static int term_log_vprintf(const char *fmt, va_list args)
     int ret = s_orig_vprintf ? s_orig_vprintf(fmt, args_copy) : 0;
     va_end(args_copy);
 
-    /* Format for ring buffer + broadcast */
-    char buf[TERM_LOG_MAX_LEN];
-    int len = vsnprintf(buf, sizeof(buf), fmt, args);
+    if (!s_hook_active) {
+        return ret;
+    }
+
+    /* Format into heap buffer (avoids 512B on stack) */
+    char *buf = malloc(TERM_LOG_MAX_LEN);
+    if (!buf) {
+        return ret;
+    }
+    int len = vsnprintf(buf, TERM_LOG_MAX_LEN, fmt, args);
     if (len > 0) {
         term_ring_write(buf, (size_t)len);
         term_broadcast_text(buf, (size_t)len);
     }
+    free(buf);
     return ret;
 }
 
@@ -358,11 +390,7 @@ esp_err_t http_server_register_terminal_routes(httpd_handle_t server)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Install log hook once */
-    if (!s_orig_vprintf) {
-        s_orig_vprintf = esp_log_set_vprintf(term_log_vprintf);
-        ESP_LOGI(TAG, "log vprintf hook installed");
-    }
+    /* Log hook is NOT installed here - deferred to first WS client connect */
 
     const httpd_uri_t handlers[] = {
         {
