@@ -263,7 +263,8 @@ export const en = {
   fileDelete: 'Delete',
   fileDevMode: 'Dev Mode',
   fileDevModeOn: 'Dev Mode: ON',
-  fileDevModeRequired: 'Enable Dev Mode to modify files.',
+  fileDevModeRequired: 'Enable developer mode before editing files.',
+  fileSystemReadOnly: 'System partition is read-only. Switch to storage partition for upload and create operations.',
   fileDevModeConfirm:
     'After entering Dev Mode, you can upload, modify, or delete files. Incorrect changes may cause the system to fail, reboot endlessly, or behave unexpectedly. Please proceed carefully.',
   filePartitionStorage: 'Data',

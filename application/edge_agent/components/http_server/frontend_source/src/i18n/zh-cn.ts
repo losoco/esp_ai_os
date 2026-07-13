@@ -258,6 +258,7 @@ export const zhCn: Dict = {
   fileDevMode: '开发者模式',
   fileDevModeOn: '开发者模式：已开启',
   fileDevModeRequired: '请先启用开发者模式再修改文件。',
+  fileSystemReadOnly: '系统分区为只读。请切换到存储分区进行上传和创建操作。',
   fileDevModeConfirm:
     '进入开发者模式后，你可以上传、修改或删除文件。不正确的增删改可能导致系统无法正常运行、无限重启等问题。请注意合理修改。',
   filePartitionStorage: '数据分区',
