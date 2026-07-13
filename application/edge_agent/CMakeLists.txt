@@ -79,9 +79,9 @@ add_custom_target(edge_agent_prepare_fatfs_image
     DEPENDS "${EDGE_AGENT_FATFS_PREPARE_STAMP}"
 )
 
-# Prepare the read-only system partition build tree: mirror the source
+# Prepare the system partition build tree: mirror the source
 # system_fs_image/ into a build-side staging dir that skill/lua syncs
-# can also write into before fatfsgen packs it.
+# can also write into before wl_fatfsgen packs it.
 add_custom_command(
     OUTPUT "${EDGE_AGENT_FATFS_SYSTEM_PREPARE_STAMP}"
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${EDGE_AGENT_FATFS_SYSTEM_BUILD_ROOT}"
@@ -99,7 +99,7 @@ add_custom_target(edge_agent_prepare_system_fs_image
     DEPENDS "${EDGE_AGENT_FATFS_SYSTEM_PREPARE_STAMP}"
 )
 
-fatfs_create_rawflash_image(system "${EDGE_AGENT_FATFS_SYSTEM_BUILD_ROOT}" FLASH_IN_PROJECT)
+fatfs_create_spiflash_image(system "${EDGE_AGENT_FATFS_SYSTEM_BUILD_ROOT}" FLASH_IN_PROJECT)
 fatfs_create_spiflash_image(storage "${EDGE_AGENT_FATFS_BUILD_ROOT}" FLASH_IN_PROJECT)
 
 # Skill / Lua resources are now baked into the read-only system partition
