@@ -210,7 +210,8 @@ export const FilesPage: Component = () => {
       return;
     }
     try {
-      await uploadFile(target, file);
+      const part = partition();
+      await uploadFile(target, file, part === 'system' ? 'system' : undefined);
       setUploadPath('');
       setChosenFile(null);
       setFileChosenName(null);
@@ -233,7 +234,8 @@ export const FilesPage: Component = () => {
       return;
     }
     try {
-      await createFolder(joinPath(currentPath(), name));
+      const part = partition();
+      await createFolder(joinPath(currentPath(), name), { partition: part === 'system' ? 'system' : undefined });
       setNewFolderName('');
       pushToast(t('fileFolderCreated') as string, 'success');
       await loadList();

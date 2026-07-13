@@ -267,18 +267,25 @@ export async function saveFileContent(path: string, content: string | Blob) {
   );
 }
 
-export async function uploadFile(path: string, file: File) {
+export async function uploadFile(path: string, file: File, partition?: string) {
+  let url = '/api/files/upload?path=' + encodeURIComponent(path);
+  if (partition) {
+    url += '&partition=' + encodeURIComponent(partition);
+  }
   return request<unknown>(
-    '/api/files/upload?path=' + encodeURIComponent(path),
+    url,
     { method: 'POST', body: file },
     'Failed to upload file',
   );
 }
 
-export async function createFolder(path: string, options: { recursive?: boolean } = {}) {
-  const body: { path: string; recursive?: boolean } = { path };
+export async function createFolder(path: string, options: { recursive?: boolean; partition?: string } = {}) {
+  const body: { path: string; recursive?: boolean; partition?: string } = { path };
   if (options.recursive) {
     body.recursive = true;
+  }
+  if (options.partition) {
+    body.partition = options.partition;
   }
   return request<unknown>(
     '/api/files/mkdir',
