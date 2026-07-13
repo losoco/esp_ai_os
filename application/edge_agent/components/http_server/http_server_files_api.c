@@ -202,9 +202,6 @@ static esp_err_t files_upload_handler(httpd_req_t *req)
     if (storage_write_locked()) {
         return reject_storage_write_locked(req);
     }
-    if (is_system_partition(req)) {
-        return httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "System partition is read-only");
-    }
 
     char relative_path[HTTP_SERVER_PATH_MAX] = {0};
     if (http_server_query_get(req, "path", relative_path, sizeof(relative_path)) != ESP_OK) {
@@ -215,7 +212,10 @@ static esp_err_t files_upload_handler(httpd_req_t *req)
     }
 
     char full_path[HTTP_SERVER_PATH_MAX];
-    if (http_server_resolve_storage_path(relative_path, full_path, sizeof(full_path)) != ESP_OK) {
+    esp_err_t resolve_err = is_system_partition(req)
+        ? http_server_resolve_system_path(relative_path, full_path, sizeof(full_path))
+        : http_server_resolve_storage_path(relative_path, full_path, sizeof(full_path));
+    if (resolve_err != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");
     }
 
@@ -292,10 +292,6 @@ static int rmdir_recursive(const char *path)
 
 static esp_err_t files_delete_handler(httpd_req_t *req)
 {
-    if (is_system_partition(req)) {
-        return httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "System partition is read-only");
-    }
-
     char relative_path[HTTP_SERVER_PATH_MAX] = {0};
     if (http_server_query_get(req, "path", relative_path, sizeof(relative_path)) != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing path");
@@ -371,17 +367,16 @@ static esp_err_t files_mkdir_handler(httpd_req_t *req)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");
     }
 
-    cJSON *part_item = cJSON_GetObjectItemCaseSensitive(root, "partition");
-    if (cJSON_IsString(part_item) && strcmp(part_item->valuestring, "system") == 0) {
-        cJSON_Delete(root);
-        return httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "System partition is read-only");
-    }
-
     cJSON *rec_item = cJSON_GetObjectItemCaseSensitive(root, "recursive");
     const bool mk_recursive = cJSON_IsBool(rec_item) && cJSON_IsTrue(rec_item);
 
+    cJSON *part_item = cJSON_GetObjectItemCaseSensitive(root, "partition");
+    const bool is_system = cJSON_IsString(part_item) && strcmp(part_item->valuestring, "system") == 0;
+
     char full_path[HTTP_SERVER_PATH_MAX];
-    esp_err_t err = http_server_resolve_storage_path(path_item->valuestring, full_path, sizeof(full_path));
+    esp_err_t err = is_system
+        ? http_server_resolve_system_path(path_item->valuestring, full_path, sizeof(full_path))
+        : http_server_resolve_storage_path(path_item->valuestring, full_path, sizeof(full_path));
     cJSON_Delete(root);
     if (err != ESP_OK) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid path");

@@ -428,11 +428,6 @@ export const FilesPage: Component = () => {
           <Banner kind="error" message={error() ?? undefined} />
         </div>
       </Show>
-      <Show when={partition() === 'system'}>
-        <div class="px-5 pt-4">
-          <Banner kind="info" message={t('fileSystemReadOnly') as string} />
-        </div>
-      </Show>
       <Show when={runningJob()}>
         {(job) => (
           <div class="px-5 pt-4">
@@ -468,7 +463,7 @@ export const FilesPage: Component = () => {
         </code>
       </div>
 
-      <Show when={devMode() && partition() !== 'system'}>
+      <Show when={devMode()}>
         <div class="px-5 pt-3 flex flex-wrap gap-2 items-center">
           <input
             type="text"

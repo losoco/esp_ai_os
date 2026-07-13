@@ -35,6 +35,7 @@ static const char *const s_ramfs_base_path = "/ramfs";
 static const char *const s_recovery_dir_name = ".recovery";
 
 static wl_handle_t s_wl_handle = WL_INVALID_HANDLE;
+static wl_handle_t s_system_wl_handle = WL_INVALID_HANDLE;
 
 // Active mount point of the writable storage: the flash fatfs partition by
 // default, or the SD card's own mount point (taken from the device handle)
@@ -182,14 +183,16 @@ static const char *storage_sdcard_mount_point(void)
 static esp_err_t app_fs_init_system(void)
 {
     esp_vfs_fat_mount_config_t mount_config = {
+        .format_if_mount_failed = true,
         .max_files = 8,
         .allocation_unit_size = 4096,
         .disk_status_check_enable = false,
     };
 
-    esp_err_t err = esp_vfs_fat_spiflash_mount_ro(s_system_base_path,
-                                                  APP_FS_SYSTEM_PARTITION_LABEL,
-                                                  &mount_config);
+    esp_err_t err = esp_vfs_fat_spiflash_mount_rw_wl(s_system_base_path,
+                                                     APP_FS_SYSTEM_PARTITION_LABEL,
+                                                     &mount_config,
+                                                     &s_system_wl_handle);
     ESP_RETURN_ON_ERROR(err, TAG, "Failed to mount system FATFS: %s", esp_err_to_name(err));
 
     log_fatfs_info(s_system_base_path);
