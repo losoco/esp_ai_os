@@ -5,6 +5,7 @@
  */
 #include "app_claw.h"
 #include "app_fs.h"
+#include "usb_msc.h"
 #include "claw_version.h"
 #include "claw_paths.h"
 #include "edge_agent_version.h"
@@ -332,6 +333,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_board_manager_init());
     ESP_ERROR_CHECK(app_claw_ui_start());
     ESP_ERROR_CHECK(app_fs_init());
+    ESP_ERROR_CHECK(usb_msc_init());
 
     /* Publish the resolved storage roots so any component can compose paths
      * without knowing whether data lives on flash or an SD card. */
@@ -341,11 +343,13 @@ void app_main(void)
     ESP_ERROR_CHECK(wifi_manager_init());
     ESP_ERROR_CHECK(http_server_init(&(http_server_config_t) {
         .storage_base_path = app_fs_storage_base_path(),
+        .system_base_path = app_fs_system_base_path(),
         .services = {
             .load_config = main_load_config,
             .save_config = main_save_config,
             .get_wifi_status = main_get_wifi_status,
             .restart_device = main_restart_device,
+            .is_storage_write_locked = usb_msc_is_storage_write_locked,
 #if CONFIG_APP_CLAW_CAP_IM_WECHAT
             .wechat_login_start = main_wechat_login_start,
             .wechat_login_get_status = main_wechat_login_get_status,

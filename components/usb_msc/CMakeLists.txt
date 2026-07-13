@@ -1,0 +1,27 @@
+if(CONFIG_APP_USB_MSC_ENABLE)
+    idf_component_register(
+        SRCS
+            "usb_msc.c"
+            "usb_msc_descriptors.c"
+        INCLUDE_DIRS
+            "include"
+            "."
+        REQUIRES
+            display_arbiter
+            esp_board_manager
+            esp_heap
+            esp_hw_support
+            esp_lcd
+            esp_timer
+            sdmmc
+            tinyusb
+            esp_tinyusb
+    )
+else()
+    idf_component_register(
+        SRCS
+            "usb_msc.c"
+        INCLUDE_DIRS
+            "include"
+    )
+endif()

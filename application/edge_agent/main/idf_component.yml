@@ -40,3 +40,6 @@ dependencies:
     path: ../../../components/common/esp_video
     matches:
     - if: $CONFIG{ESP_BOARD_DEV_CAMERA_SUPPORT} == True
+
+  usb_msc:
+    path: ../../../components/usb_msc

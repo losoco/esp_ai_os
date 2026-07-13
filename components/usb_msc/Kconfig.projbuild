@@ -1,0 +1,18 @@
+menu "USB MSC"
+
+config APP_USB_MSC_ENABLE
+    bool "Expose mounted SD card as USB Mass Storage"
+    default y if IDF_TARGET_ESP32P4 && ESP_BOARD_DEV_FS_FAT_SUPPORT
+    help
+        When enabled, the app exposes the board-manager mounted fs_sdcard
+        device as a USB Mass Storage drive using TinyUSB.
+
+config APP_USB_MSC_READONLY
+    bool "Expose USB Mass Storage as read-only"
+    default n
+    depends on APP_USB_MSC_ENABLE
+    help
+        When enabled, the USB host can only read the exported SD card.
+        When disabled, the USB host can read and write the exported SD card.
+
+endmenu

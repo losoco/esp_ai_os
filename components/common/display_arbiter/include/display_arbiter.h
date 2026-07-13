@@ -17,6 +17,8 @@ typedef enum {
     DISPLAY_ARBITER_OWNER_NONE = 0,
     DISPLAY_ARBITER_OWNER_LUA,
     DISPLAY_ARBITER_OWNER_EMOTE,
+    DISPLAY_ARBITER_OWNER_USB_MSC,
+    DISPLAY_ARBITER_OWNER_EMOTE_GFX,
 } display_arbiter_owner_t;
 
 typedef void (*display_arbiter_owner_changed_cb_t)(display_arbiter_owner_t owner, void *user_ctx);

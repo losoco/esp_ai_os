@@ -1,0 +1,13 @@
+dependencies:
+  display_arbiter:
+    path: ../common/display_arbiter
+  espressif/esp_board_manager:
+    version: "^0.6"
+  espressif/esp_tinyusb:
+    version: "^1.3.0"
+    rules:
+      - if: $CONFIG{APP_USB_MSC_ENABLE} == True
+  espressif/tinyusb:
+    version: "^0.17.0~1"
+    rules:
+      - if: $CONFIG{APP_USB_MSC_ENABLE} == True

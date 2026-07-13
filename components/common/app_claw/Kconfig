@@ -397,6 +397,20 @@ menu "App Claw Config"
                 operating modes (local playback, BT pairing, music receive) via UART
                 AT commands.
 
+        config APP_CLAW_LUA_MODULE_GPS
+            bool "Enable GPS Lua module"
+            default n
+            help
+                Enable the GPS Lua module for NMEA-0183 parsing (GGA/RMC/GSV)
+                via UART.
+
+        config APP_CLAW_LUA_MODULE_NT26
+            bool "Enable NT26 4G Modem Lua module"
+            default n
+            help
+                Enable the NT26 / ML307 4G LTE modem Lua module for AT commands
+                (signal, IMEI, ICCID, cell info, dial/hangup) via UART.
+
         config APP_CLAW_LUA_MODULE_IMAGE
             bool "Enable image Lua module"
             default y
@@ -493,5 +507,13 @@ menu "App Claw Config"
                 define vision-specific options such as motion_detect and espdet.
 
     endmenu
+
+    config APP_CLAW_DEVELOPER_MODE
+        bool "Enable developer mode"
+        default y
+        select APP_USB_MSC_ENABLE if ESP_BOARD_DEV_FS_FAT_SUPPORT && IDF_TARGET_ESP32P4
+        help
+            Enable developer-friendly defaults: USB MSC for SD card access,
+            verbose logging, and relaxed system partition access.
 
 endmenu
