@@ -338,8 +338,12 @@ export async function getLuaJobStatus(jobId: string) {
 
 export async function stopLuaJob(jobId: string) {
   return request<LuaJobInfo>(
-    '/api/files/run/' + encodeURIComponent(jobId) + '/stop',
-    { method: 'POST' },
+    '/api/files/run/stop',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId }),
+    },
     'Failed to stop job',
   );
 }

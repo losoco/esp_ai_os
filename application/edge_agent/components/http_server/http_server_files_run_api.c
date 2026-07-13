@@ -159,30 +159,22 @@ static esp_err_t files_run_status_handler(httpd_req_t *req)
 
 static esp_err_t files_run_stop_handler(httpd_req_t *req)
 {
-    /* URI: /api/files/run/<job_id>/stop */
-    const char *prefix = "/api/files/run/";
-    size_t prefix_len = strlen(prefix);
-    if (strncmp(req->uri, prefix, prefix_len) != 0) {
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid URI");
-    }
-    const char *suffix = req->uri + prefix_len;
-    const char *stop_suffix = "/stop";
-    size_t job_id_len = strlen(suffix);
-    if (job_id_len <= strlen(stop_suffix) ||
-        strcmp(suffix + job_id_len - strlen(stop_suffix), stop_suffix) != 0) {
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid URI");
+    /* URI: /api/files/run/stop — stop by job_id in JSON body */
+    cJSON *root = NULL;
+    if (http_server_parse_json_body(req, &root) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON body");
     }
 
-    char job_id[64];
-    size_t copy_len = job_id_len - strlen(stop_suffix);
-    if (copy_len >= sizeof(job_id)) {
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Job id too long");
+    cJSON *job_item = cJSON_GetObjectItemCaseSensitive(root, "job_id");
+    if (!cJSON_IsString(job_item)) {
+        cJSON_Delete(root);
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing job_id");
     }
-    memcpy(job_id, suffix, copy_len);
-    job_id[copy_len] = '\0';
 
     char output[1024] = {0};
-    esp_err_t err = cap_lua_stop_job(job_id, 2000, output, sizeof(output));
+    esp_err_t err = cap_lua_stop_job(job_item->valuestring, 2000, output, sizeof(output));
+    cJSON_Delete(root);
+
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, max-age=0");
     if (err != ESP_OK) {
@@ -273,7 +265,7 @@ esp_err_t http_server_register_files_run_routes(httpd_handle_t server)
         { .uri = "/api/files/run", .method = HTTP_POST, .handler = files_run_handler },
         { .uri = "/api/files/run/list", .method = HTTP_GET, .handler = files_run_list_handler },
         { .uri = "/api/files/run/*", .method = HTTP_GET, .handler = files_run_status_handler },
-        { .uri = "/api/files/run/*/stop", .method = HTTP_POST, .handler = files_run_stop_handler },
+        { .uri = "/api/files/run/stop", .method = HTTP_POST, .handler = files_run_stop_handler },
     };
 
     for (size_t i = 0; i < sizeof(handlers) / sizeof(handlers[0]); ++i) {
