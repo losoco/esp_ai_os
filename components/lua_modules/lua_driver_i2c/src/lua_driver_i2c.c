@@ -241,7 +241,20 @@ static int lua_driver_i2c_device_write(lua_State *L)
 
     int type = lua_type(L, 2);
     if (type == LUA_TSTRING) {
-        data_ptr = (const uint8_t *)lua_tolstring(L, 2, &data_len);
+        size_t slen;
+        const uint8_t *sdata = (const uint8_t *)lua_tolstring(L, 2, &slen);
+        if (has_mem_addr) {
+            /* Prepend mem_addr to string data, matching table behavior */
+            size_t alloc = slen + 1;
+            tmp_buf = (uint8_t *)lua_newuserdata(L, alloc);
+            tmp_buf[0] = mem_addr_buf;
+            memcpy(&tmp_buf[1], sdata, slen);
+            data_ptr = tmp_buf;
+            data_len = alloc;
+        } else {
+            data_ptr = sdata;
+            data_len = slen;
+        }
     } else if (type == LUA_TTABLE) {
         lua_Integer n = luaL_len(L, 2);
         if (n < 0 || n > LUA_DRIVER_I2C_RW_MAX_LEN) {

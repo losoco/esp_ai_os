@@ -65,7 +65,7 @@ end
 
 --- 写寄存器
 function mt:_write_reg(reg, value)
-    self._dev:write(string.char(value), reg)
+    self._dev:write_byte(value, reg)
 end
 
 --- 读单字节
@@ -106,15 +106,17 @@ function mt:read_mg()
     hi = string.byte(data, 6)
     local rz = (hi << 8) | lo
 
-    -- 12-bit 有符号值右对齐, 需右移 4 位
-    local function to_s16(v)
-        if v >= 0x8000 then v = v - 0x10000 end
+    -- 12-bit left-aligned: data in [15:4], shift first then convert to signed
+    -- (Lua 5.3 >> is logical shift, gives huge values on negative numbers)
+    local function to_s12(v)
+        v = v >> 4
+        if v >= 0x800 then v = v - 0x1000 end
         return v
     end
 
-    local ax = (to_s16(rx) >> 4) * MG_PER_LSB
-    local ay = (to_s16(ry) >> 4) * MG_PER_LSB
-    local az = (to_s16(rz) >> 4) * MG_PER_LSB
+    local ax = to_s12(rx) * MG_PER_LSB
+    local ay = to_s12(ry) * MG_PER_LSB
+    local az = to_s12(rz) * MG_PER_LSB
 
     -- 零点偏移校准
     ax = ax - self._ox
