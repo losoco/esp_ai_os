@@ -65,7 +65,7 @@ end
 
 --- 写寄存器
 function mt:_write_reg(reg, value)
-    self._dev:write(reg, string.char(value))
+    self._dev:write(string.char(value), reg)
 end
 
 --- 读单字节
@@ -95,7 +95,7 @@ end
 --- 读取原始加速度计值（mg）
 --- 返回 ax, ay, az（单位: mg）
 function mt:read_mg()
-    local data = self._read_regs(REG_OUT_X_L, 6)
+    local data = self:_read_regs(REG_OUT_X_L, 6)
     local lo = string.byte(data, 1)
     local hi = string.byte(data, 2)
     local rx = (hi << 8) | lo
