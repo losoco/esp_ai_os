@@ -1,5 +1,6 @@
 -- bubble_level.lua - Spirit level using accelerometer + display
 -- Shows a bubble level that responds to device tilt
+
 local display = require("display")
 local board_manager = require("board_manager")
 local lib_sc7a20h = require("lib_sc7a20h")
@@ -49,18 +50,18 @@ local function init()
     touch_handle = board_manager.get_lcd_touch_handle("lcd_touch")
 end
 
-local function draw_level(ax, ay)
+local function draw_level(ax, ay, az)
     display.begin_frame({clear = true, color = DARK})
 
-    -- Tilt angles in degrees
-    local tilt_x = math.deg(atan2(ax, 9.81 * 1000))
-    local tilt_y = math.deg(atan2(ay, 9.81 * 1000))
+    -- Tilt angles in degrees (ax/ay/az in mg; use az as gravity reference)
+    local tilt_x = math.deg(atan2(ax, az))
+    local tilt_y = math.deg(atan2(ay, az))
 
     -- Map tilt to bubble offset (max ~120px for 30 deg)
     local max_tilt = 30
     local max_offset = 120
-    local bx = math.floor(CX + math.max(-max_offset, math.min(max_offset, (tilt_y / max_tilt) * max_offset)))
-    local by = math.floor(CY + math.max(-max_offset, math.min(max_offset, (-tilt_x / max_tilt) * max_offset)))
+    local bx = math.floor(CX + math.max(-max_offset, math.min(max_offset, (tilt_x / max_tilt) * max_offset)))
+    local by = math.floor(CY + math.max(-max_offset, math.min(max_offset, (-tilt_y / max_tilt) * max_offset)))
 
     -- Outer circle (vial)
     local vial_r = 200
@@ -107,7 +108,7 @@ local function run()
 
     while RUNNING do
         local ax, ay, az = accel:read_mg()
-        draw_level(ax, ay)
+        draw_level(ax, ay, az)
 
         if touch_handle then
             local lcd_touch = require("lcd_touch")
