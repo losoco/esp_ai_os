@@ -326,16 +326,22 @@ end
 
 local function draw_drawer()
     draw_statusbar("App Drawer")
-    local y = 72
+    local list = lvgl.container(screen, {
+        x = 0, y = 62, w = W - 32, h = H - 74,
+        bg_color = COLORS.bg,
+        radius = 0,
+        border_width = 0,
+    })
+    list:set_scroll({ dir = "ver", scrollbar = "on" })
+
     for i, app in ipairs(apps) do
-        if y > H - 70 then break end
         local label = app.name .. "  " .. (app.source == "data" and "SD" or "SYSTEM")
-        button(screen, label, 24, y, W - 48, 54, app.source == "data" and COLORS.data or COLORS.card, function()
+        local bw = W - 56
+        button(list, label, 8, (i - 1) * 62, bw, 54, app.source == "data" and COLORS.data or COLORS.card, function()
             selected_app = app
             current_view = "detail"
             render()
         end)
-        y = y + 62
     end
     if #apps == 0 then
         text(screen, "No app packages found", 0, H // 2 - 20, W, 40, 24, COLORS.warn, "center")
