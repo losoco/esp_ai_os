@@ -547,6 +547,18 @@ static int lua_lvgl_init(lua_State *L)
         (void)lua_lvgl_deinit_runtime();
         return lua_lvgl_error_esp(L, "register flush callback", err);
     }
+
+    /* Force an initial full-screen refresh so the panel has valid content
+     * immediately after init, mirroring the reference implementation. */
+    lv_obj_t *screen = lv_screen_active();
+    if (screen != NULL) {
+        lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), 0);
+        lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+        lv_obj_invalidate(screen);
+        lv_refr_now(display);
+        lua_lvgl_wait_flush_done();
+    }
+
     lua_lvgl_unlock();
 
     err = esp_timer_create(&timer_args, &tick_timer);
