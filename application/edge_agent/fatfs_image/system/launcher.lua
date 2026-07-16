@@ -188,12 +188,14 @@ local function deinit_lvgl()
 end
 
 local function clear_screen()
-    local old = screen
-    screen = lvgl.create_screen()
+    if not screen then
+        screen = lvgl.create_screen()
+        screen:set_scroll({ dir = "none", scrollbar = "off" })
+    else
+        screen:clean()
+    end
     screen:set_style({ bg_color = COLORS.bg })
-    screen:set_scroll({ dir = "none", scrollbar = "off" })
     screen:load()
-    if old then pcall(function() old:delete() end) end
 end
 
 local function text(parent, value, x, y, w, h, size, color, align)
