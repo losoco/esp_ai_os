@@ -42,19 +42,19 @@ local should_exit
 local last_error
 
 local COLORS = {
-    bg = "#0f172a",
-    panel = "#111827",
-    card = "#1e293b",
-    card2 = "#263449",
-    text = "#f8fafc",
-    sub = "#94a3b8",
-    accent = "#38bdf8",
-    accent2 = "#818cf8",
-    danger = "#ef4444",
-    ok = "#22c55e",
-    warn = "#f59e0b",
-    system = "#334155",
-    data = "#155e75",
+    bg = "#f0f4f8",
+    panel = "#ffffff",
+    card = "#ffffff",
+    card2 = "#e8edf2",
+    text = "#1a2332",
+    sub = "#7b8794",
+    accent = "#4facfe",
+    accent2 = "#667eea",
+    danger = "#fc5c65",
+    ok = "#2ecc71",
+    warn = "#f39c12",
+    system = "#d0d7e0",
+    data = "#a8d8ea",
 }
 
 local function starts_with(s, prefix)
@@ -211,9 +211,9 @@ local function button(parent, value, x, y, w, h, bg, cb)
         x = x, y = y, w = w, h = h,
         bg_color = bg or COLORS.card,
         text_color = COLORS.text,
-        radius = 14,
+        radius = 12,
         border_width = 1,
-        border_color = "#334155",
+        border_color = "#dce1e8",
     })
     b:set_scroll({ dir = "none", scrollbar = "off" })
     if cb then b:on("clicked", cb) end
@@ -348,9 +348,9 @@ local function draw_detail()
     if not app then return end
     text(screen, app.name, 34, 62, W - 68, 42, 34, COLORS.text, "left_mid")
     text(screen, app.description ~= "" and app.description or app.id, 34, 110, W - 68, 60, 20, COLORS.sub, "left_mid")
-    text(screen, "Version: " .. app.version, 34, 190-60, W - 68, 28, 18, COLORS.sub, "left_mid")
-    text(screen, "Source: " .. app.source .. (app.overrides_system and " (overrides system)" or ""), 34, 226-70, W - 68, 28, 18, COLORS.sub, "left_mid")
-    text(screen, "Entry: " .. app.entry, 34, 262-70, W - 68, 60, 16, COLORS.sub, "left_mid")
+    text(screen, "Version: " .. app.version, 34, 130, W - 68, 28, 18, COLORS.sub, "left_mid")
+    text(screen, "Source: " .. app.source .. (app.overrides_system and " (overrides system)" or ""), 34, 156, W - 68, 28, 18, COLORS.sub, "left_mid")
+    text(screen, "Entry: " .. app.entry, 34, 192, W - 68, 60, 16, COLORS.sub, "left_mid")
     button(screen, "Launch", 34, H - 180, W - 68, 58, COLORS.ok, function()
         pending_launch = app
     end)
