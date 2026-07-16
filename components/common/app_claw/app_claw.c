@@ -6,6 +6,9 @@
 #include "app_claw.h"
 #include "app_claw_cli.h"
 #include "app_capabilities.h"
+#if CONFIG_APP_CLAW_ENABLE_BOOT_LAUNCHER
+#include "boot_launcher.h"
+#endif
 #if CONFIG_APP_CLAW_ENABLE_EMOTE
 #include "emote.h"
 #endif
@@ -529,6 +532,10 @@ esp_err_t app_claw_start(const app_claw_config_t *config)
 #if CONFIG_APP_CLAW_CAP_EVENT_ROUTER
     ESP_RETURN_ON_ERROR(app_claw_publish_startup_event(), TAG,
                         "Failed to publish startup event");
+#endif
+
+#if CONFIG_APP_CLAW_ENABLE_BOOT_LAUNCHER && !CONFIG_APP_CLAW_ENABLE_EMOTE
+    ESP_RETURN_ON_ERROR(boot_launcher_start(), TAG, "Failed to start boot launcher");
 #endif
     ESP_LOGI(TAG, "App Claw runtime started");
 

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "particles",
+  "name": "Particles",
+  "version": "1.0.0",
+  "description": "Tilt-controlled particle simulation.",
+  "entry": "main.lua",
+  "category": [
+    "demo",
+    "sensor"
+  ],
+  "requires": {
+    "lua_modules": [
+      "display",
+      "board_manager",
+      "delay"
+    ],
+    "peripherals": [
+      "display",
+      "touch"
+    ]
+  },
+  "launch": {
+    "timeout_ms": 0,
+    "exclusive": "display",
+    "replace": true
+  }
+}

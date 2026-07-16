@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "chess",
+  "name": "Chess",
+  "version": "1.0.0",
+  "description": "Two-player chess game.",
+  "entry": "main.lua",
+  "category": [
+    "game"
+  ],
+  "requires": {
+    "lua_modules": [
+      "display",
+      "board_manager",
+      "delay"
+    ],
+    "peripherals": [
+      "display",
+      "touch"
+    ]
+  },
+  "launch": {
+    "timeout_ms": 0,
+    "exclusive": "display",
+    "replace": true
+  }
+}

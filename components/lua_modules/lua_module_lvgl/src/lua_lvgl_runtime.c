@@ -5,6 +5,10 @@
  */
 #include "lua_lvgl_private.h"
 
+#if CONFIG_SOC_MIPI_DSI_SUPPORTED
+#include "esp_lcd_mipi_dsi.h"
+#endif
+
 static const char *TAG = "lua_lvgl";
 lua_lvgl_state_t s_lvgl;
 
@@ -42,20 +46,16 @@ static const char *lua_lvgl_display_owner_name(display_arbiter_owner_t owner)
         return "lua";
     case DISPLAY_ARBITER_OWNER_EMOTE:
         return "emote";
+    case DISPLAY_ARBITER_OWNER_USB_MSC:
+        return "usb_msc";
     default:
         return "unknown";
     }
 }
 
-static IRAM_ATTR bool lua_lvgl_flush_done_cb(esp_lcd_panel_io_handle_t panel_io,
-                                             esp_lcd_panel_io_event_data_t *edata,
-                                             void *user_ctx)
+static bool lua_lvgl_flush_done_isr(lua_lvgl_state_t *state)
 {
-    lua_lvgl_state_t *state = (lua_lvgl_state_t *)user_ctx;
     BaseType_t high_task_woken = pdFALSE;
-
-    (void)panel_io;
-    (void)edata;
 
     if (state) {
         lv_display_t *display = state->display;
@@ -72,17 +72,47 @@ static IRAM_ATTR bool lua_lvgl_flush_done_cb(esp_lcd_panel_io_handle_t panel_io,
     return high_task_woken == pdTRUE;
 }
 
+static IRAM_ATTR bool lua_lvgl_flush_done_cb(esp_lcd_panel_io_handle_t panel_io,
+                                             esp_lcd_panel_io_event_data_t *edata,
+                                             void *user_ctx)
+{
+    (void)panel_io;
+    (void)edata;
+    return lua_lvgl_flush_done_isr((lua_lvgl_state_t *)user_ctx);
+}
+
+#if CONFIG_SOC_MIPI_DSI_SUPPORTED
+static IRAM_ATTR bool lua_lvgl_flush_done_dpi_cb(esp_lcd_panel_handle_t panel,
+                                                 esp_lcd_dpi_panel_event_data_t *edata,
+                                                 void *user_ctx)
+{
+    (void)panel;
+    (void)edata;
+    return lua_lvgl_flush_done_isr((lua_lvgl_state_t *)user_ctx);
+}
+#endif
+
 static esp_err_t lua_lvgl_register_flush_callbacks_locked(void)
 {
-    if (s_lvgl.panel_if != LUA_MODULE_LVGL_PANEL_IF_IO) {
-        return ESP_OK;
-    }
-    ESP_RETURN_ON_FALSE(s_lvgl.io != NULL, ESP_ERR_INVALID_STATE, TAG, "io handle missing");
+    esp_err_t err = ESP_OK;
 
-    const esp_lcd_panel_io_callbacks_t callbacks = {
-        .on_color_trans_done = lua_lvgl_flush_done_cb,
-    };
-    esp_err_t err = esp_lcd_panel_io_register_event_callbacks(s_lvgl.io, &callbacks, &s_lvgl);
+    if (s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
+        ESP_RETURN_ON_FALSE(s_lvgl.io != NULL, ESP_ERR_INVALID_STATE, TAG, "io handle missing");
+
+        const esp_lcd_panel_io_callbacks_t callbacks = {
+            .on_color_trans_done = lua_lvgl_flush_done_cb,
+        };
+        err = esp_lcd_panel_io_register_event_callbacks(s_lvgl.io, &callbacks, &s_lvgl);
+    } else if (s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI) {
+#if CONFIG_SOC_MIPI_DSI_SUPPORTED
+        const esp_lcd_dpi_panel_event_callbacks_t callbacks = {
+            .on_color_trans_done = lua_lvgl_flush_done_dpi_cb,
+        };
+        err = esp_lcd_dpi_panel_register_event_callbacks(s_lvgl.panel, &callbacks, &s_lvgl);
+#else
+        err = ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
 
     if (err == ESP_OK) {
         s_lvgl.flush_callbacks_registered = true;
@@ -92,14 +122,26 @@ static esp_err_t lua_lvgl_register_flush_callbacks_locked(void)
 
 static esp_err_t lua_lvgl_clear_flush_callbacks_locked(void)
 {
-    if (!s_lvgl.flush_callbacks_registered || s_lvgl.panel_if != LUA_MODULE_LVGL_PANEL_IF_IO) {
+    esp_err_t err = ESP_OK;
+
+    if (!s_lvgl.flush_callbacks_registered) {
         s_lvgl.flush_callbacks_registered = false;
         return ESP_OK;
     }
-    ESP_RETURN_ON_FALSE(s_lvgl.io != NULL, ESP_ERR_INVALID_STATE, TAG, "io handle missing");
 
-    const esp_lcd_panel_io_callbacks_t callbacks = {0};
-    esp_err_t err = esp_lcd_panel_io_register_event_callbacks(s_lvgl.io, &callbacks, NULL);
+    if (s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
+        ESP_RETURN_ON_FALSE(s_lvgl.io != NULL, ESP_ERR_INVALID_STATE, TAG, "io handle missing");
+
+        const esp_lcd_panel_io_callbacks_t callbacks = {0};
+        err = esp_lcd_panel_io_register_event_callbacks(s_lvgl.io, &callbacks, NULL);
+    } else if (s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI) {
+#if CONFIG_SOC_MIPI_DSI_SUPPORTED
+        const esp_lcd_dpi_panel_event_callbacks_t callbacks = {0};
+        err = esp_lcd_dpi_panel_register_event_callbacks(s_lvgl.panel, &callbacks, NULL);
+#else
+        err = ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
 
     if (err == ESP_OK) {
         s_lvgl.flush_callbacks_registered = false;
@@ -134,9 +176,13 @@ static void lua_lvgl_bswap16_in_place(uint8_t *px_map, size_t pixel_count)
 static void lua_lvgl_flush_cb(lv_display_t *display, const lv_area_t *area, uint8_t *px_map)
 {
     lua_lvgl_state_t *state = (lua_lvgl_state_t *)lv_display_get_user_data(display);
-    bool wait_for_flush_done = state &&
-                               state->panel_if == LUA_MODULE_LVGL_PANEL_IF_IO &&
-                               state->flush_callbacks_registered;
+
+    if (display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_USB_MSC)) {
+        lv_display_flush_ready(display);
+        return;
+    }
+
+    bool wait_for_flush_done = state && state->flush_callbacks_registered;
 
     if (state && state->panel) {
         if (lua_lvgl_panel_requires_color_swap(state)) {
@@ -179,10 +225,19 @@ static void lua_lvgl_tick_timer_cb(void *arg)
 static void lua_lvgl_task(void *arg)
 {
     lua_lvgl_state_t *state = (lua_lvgl_state_t *)arg;
+    bool prev_usb_msc = false;
 
     while (!state->task_stop) {
         if (lua_lvgl_lock() == ESP_OK) {
             if (state->runtime_initialized) {
+                bool is_usb_msc = display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_USB_MSC);
+                if (prev_usb_msc && !is_usb_msc) {
+                    lv_obj_t *scr = lv_screen_active();
+                    if (scr) {
+                        lv_obj_invalidate(scr);
+                    }
+                }
+                prev_usb_msc = is_usb_msc;
                 (void)lv_timer_handler();
             }
             lua_lvgl_unlock();

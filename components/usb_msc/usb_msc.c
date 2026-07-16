@@ -279,7 +279,7 @@ static void perform_mount_activation(void)
             acquire_usb_display_lock();
         } else {
             ESP_LOGI(TAG, "Launcher not ready (owner=%s), deferring display lock",
-                     owner == DISPLAY_ARBITER_OWNER_EMOTE_GFX ? "emote_gfx" : "none");
+                     owner == DISPLAY_ARBITER_OWNER_EMOTE ? "emote_gfx" : "none");
             s_boot_defer_retries = 0;
             if (s_boot_defer_timer) {
                 esp_timer_start_once(s_boot_defer_timer, USB_MSC_BOOT_DEFER_INTERVAL_US);

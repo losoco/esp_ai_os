@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "compass",
+  "name": "Compass",
+  "version": "1.0.0",
+  "description": "Magnetometer compass.",
+  "entry": "main.lua",
+  "category": [
+    "tool",
+    "sensor"
+  ],
+  "requires": {
+    "lua_modules": [
+      "display",
+      "board_manager",
+      "delay"
+    ],
+    "peripherals": [
+      "display",
+      "touch"
+    ]
+  },
+  "launch": {
+    "timeout_ms": 0,
+    "exclusive": "display",
+    "replace": true
+  }
+}

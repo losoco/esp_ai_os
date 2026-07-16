@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS
+        "boot_launcher.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        cap_lua
+        claw_core
+        display_arbiter
+        esp_board_manager
+)

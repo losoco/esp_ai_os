@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "sensor_hub",
+  "name": "Sensor Hub",
+  "version": "1.0.0",
+  "description": "Multi-page sensor dashboard.",
+  "entry": "main.lua",
+  "category": [
+    "tool",
+    "sensor"
+  ],
+  "requires": {
+    "lua_modules": [
+      "display",
+      "board_manager",
+      "delay"
+    ],
+    "peripherals": [
+      "display",
+      "touch"
+    ]
+  },
+  "launch": {
+    "timeout_ms": 0,
+    "exclusive": "display",
+    "replace": true
+  }
+}

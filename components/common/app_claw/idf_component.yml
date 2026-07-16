@@ -124,6 +124,12 @@ dependencies:
       - if: $CONFIG{APP_CLAW_ENABLE_EMOTE} == True
     path: ../emote
 
+  boot_launcher:
+    rules:
+      - if: $CONFIG{ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT} == True
+      - if: $CONFIG{APP_CLAW_ENABLE_BOOT_LAUNCHER} == True
+    path: ../boot_launcher
+
   # --- lua_driver (hardware peripheral drivers) ---
 
   lua_driver_adc:

@@ -15,6 +15,15 @@ menu "App Claw Config"
             Enable expression emote startup and emote asset packaging for boards
             with LCD display support.
 
+    config APP_CLAW_ENABLE_BOOT_LAUNCHER
+        bool "Enable boot launcher"
+        depends on APP_CLAW_CAP_LUA && ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
+        default n
+        help
+            Start the SYSTEM launcher (/system/launcher.lua) automatically at boot
+            when emote is disabled. The launcher can take over the display through
+            Lua/LVGL and is restarted when display ownership returns to emote.
+
     choice APP_CLAW_MEMORY_MODE
         prompt "App Claw memory management mode"
         depends on APP_CLAW_CAP_MEMORY
