@@ -1525,7 +1525,9 @@ esp_err_t display_hal_set_backlight(bool on)
         ret = display_hal_ensure_display_locked();
     }
     if (ret == ESP_OK) {
-        ret = esp_lcd_panel_disp_on_off(s_state.panel, on);
+        if(on == true) {
+            ret = esp_lcd_panel_disp_on_off(s_state.panel, on);
+        }
     }
     display_hal_unlock();
     return ret;

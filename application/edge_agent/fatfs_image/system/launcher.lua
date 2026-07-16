@@ -38,6 +38,7 @@ local settings = {
     dock = {},
 }
 local pending_launch
+local should_exit
 local last_error
 
 local COLORS = {
@@ -169,7 +170,11 @@ end
 local function init_lvgl()
     panel, io, W, H, panel_if = board_manager.get_display_lcd_params("display_lcd")
     if not panel then error("display_lcd not found") end
-    lvgl.init(panel, io, W, H, panel_if, { buffer_lines = 20, tick_ms = 5, task_period_ms = 10 })
+    local buf_lines = 20
+    if panel_if == 2 then  -- MIPI_DSI: larger buffer reduces DMA flush count
+        buf_lines = math.min(H, 120)
+    end
+    lvgl.init(panel, io, W, H, panel_if, { buffer_lines = buf_lines, tick_ms = 5, task_period_ms = 10 })
     local ok, h = pcall(board_manager.get_lcd_touch_handle, "lcd_touch")
     if ok and h then
         touch_handle = h
@@ -244,23 +249,24 @@ local function run_app(app)
     deinit_lvgl()
     delay.delay_ms(RESTORE_DELAY_MS)
 
-    local ok, result = thread.run(app.entry, {}, {
+    local ok, result = thread.start(app.entry, {}, {
+        name = app.id,
         timeout_ms = app.launch.timeout_ms or 0,
         exclusive = app.launch.exclusive or "display",
+        replace = true,
     })
 
-    delay.delay_ms(RESTORE_DELAY_MS)
-    init_lvgl()
-    scan_apps()
     if ok then
-        add_history(app, "finished", "")
-        current_view = "desktop"
+        print("launcher: started " .. app.name .. " as independent app, exiting")
+        should_exit = true
     else
+        print("launcher: failed to start " .. app.name .. ": " .. tostring(result))
+        init_lvgl()
         add_history(app, "failed", tostring(result))
         last_error = app.name .. " failed: " .. tostring(result)
         current_view = "error"
+        render()
     end
-    render()
 end
 
 local function draw_statusbar(title)
@@ -280,7 +286,7 @@ local function draw_statusbar(title)
         current_view = "settings"
         render()
     end)
-    text(screen, title, 306, 10, W - 440, 36, 24, COLORS.text, "center")
+    -- text(screen, title, 306, 10, W - 440, 36, 24, COLORS.text, "center")
 end
 
 local function draw_app_icon(app, x, y, w, h)
@@ -290,11 +296,7 @@ local function draw_app_icon(app, x, y, w, h)
         current_view = "detail"
         render()
     end)
-    text(b, icon_letter(app), 0, 10, w, 44, 34, COLORS.text, "center")
-    text(b, app.name, 8, 58, w - 16, 24, 16, COLORS.text, "center")
-    local src = app.source == "data" and "SD" or "SYS"
-    if app.overrides_system then src = "SD*" end
-    text(b, src, 0, h - 28, w, 20, 13, COLORS.sub, "center")
+    text(b, app.name, 0, 0, w, h, 16, COLORS.text, "center")
 end
 
 local function draw_desktop()
@@ -344,15 +346,15 @@ local function draw_detail()
     local app = selected_app
     draw_statusbar(app and app.name or "App Detail")
     if not app then return end
-    text(screen, app.name, 34, 82, W - 68, 42, 34, COLORS.text, "left_mid")
-    text(screen, app.description ~= "" and app.description or app.id, 34, 130, W - 68, 60, 20, COLORS.sub, "left_mid")
-    text(screen, "Version: " .. app.version, 34, 210, W - 68, 28, 18, COLORS.sub, "left_mid")
-    text(screen, "Source: " .. app.source .. (app.overrides_system and " (overrides system)" or ""), 34, 246, W - 68, 28, 18, COLORS.sub, "left_mid")
-    text(screen, "Entry: " .. app.entry, 34, 282, W - 68, 60, 16, COLORS.sub, "left_mid")
-    button(screen, "Launch", 34, H - 160, W - 68, 58, COLORS.ok, function()
+    text(screen, app.name, 34, 62, W - 68, 42, 34, COLORS.text, "left_mid")
+    text(screen, app.description ~= "" and app.description or app.id, 34, 110, W - 68, 60, 20, COLORS.sub, "left_mid")
+    text(screen, "Version: " .. app.version, 34, 190-60, W - 68, 28, 18, COLORS.sub, "left_mid")
+    text(screen, "Source: " .. app.source .. (app.overrides_system and " (overrides system)" or ""), 34, 226-70, W - 68, 28, 18, COLORS.sub, "left_mid")
+    text(screen, "Entry: " .. app.entry, 34, 262-70, W - 68, 60, 16, COLORS.sub, "left_mid")
+    button(screen, "Launch", 34, H - 180, W - 68, 58, COLORS.ok, function()
         pending_launch = app
     end)
-    button(screen, "Back", 34, H - 88, W - 68, 58, COLORS.panel, function()
+    button(screen, "Back", 34, H - 108, W - 68, 58, COLORS.panel, function()
         current_view = "desktop"
         render()
     end)
@@ -427,6 +429,9 @@ local function main()
             pending_launch = nil
             pcall(lvgl.process_events, 1)
             run_app(app)
+        end
+        if should_exit then
+            break
         end
         local ok, err = pcall(lvgl.process_events, POLL_MS)
         if not ok then

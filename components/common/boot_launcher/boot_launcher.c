@@ -19,10 +19,8 @@
 #endif
 #include "esp_check.h"
 #include "esp_log.h"
-#if CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#endif
 
 static const char *TAG = "boot_launcher";
 
@@ -30,6 +28,7 @@ static const char *TAG = "boot_launcher";
 #define SCANNER_JOB_NAME        "launcher_scanner"
 #define LAUNCHER_ARGS           "{\"__launcher_worker\":true}"
 #define SCRIPT_STOP_WAIT_MS     20
+#define LAUNCHER_RESTART_DELAY_MS 300
 
 #if CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT
 #define TOUCH_POLL_MS     50
@@ -51,31 +50,6 @@ static esp_lcd_touch_handle_t s_touch_handle;
 static TaskHandle_t s_touch_task;
 static TaskHandle_t s_stop_task;
 #endif
-
-static bool job_is_running(const char *name)
-{
-    char *output = calloc(1, 512);
-    if (!output) {
-        return false;
-    }
-
-    esp_err_t err = cap_lua_list_jobs(NULL, output, 512);
-    if (err != ESP_OK) {
-        free(output);
-        return false;
-    }
-
-    char needle[64];
-    int written = snprintf(needle, sizeof(needle), "name=%s", name);
-    if (written <= 0 || (size_t)written >= sizeof(needle)) {
-        free(output);
-        return false;
-    }
-
-    bool running = strstr(output, needle) != NULL;
-    free(output);
-    return running;
-}
 
 static void stop_all_scripts_except_launcher(void)
 {
@@ -374,17 +348,64 @@ static esp_err_t boot_launcher_start_touch_monitor(void)
 }
 #endif
 
+static void restart_launcher_deferred(void *arg)
+{
+    (void)arg;
+
+    /* Wait for the exiting script's Lua state to fully destroy and its
+     * job to reach a terminal state. The callback fires synchronously
+     * inside lvgl.deinit → display_arbiter_release, but the async job
+     * runner hasn't finalized the job status yet. Racing with the
+     * cleanup can also cause display hardware conflicts (especially on
+     * MIPI DSI panels where the DMA engine may still be flushing). */
+    vTaskDelay(pdMS_TO_TICKS(LAUNCHER_RESTART_DELAY_MS));
+
+    size_t active_count = cap_lua_get_active_async_job_count();
+    ESP_LOGI(TAG, "Deferred restart: active_count=%u display_owner=%d",
+             (unsigned)active_count, (int)display_arbiter_get_owner());
+    if (active_count == 0) {
+        ESP_LOGI(TAG, "No active scripts, restarting launcher (deferred)");
+        (void)launcher_run();
+    } else {
+        ESP_LOGI(TAG, "Scripts still active after delay, skipping launcher restart");
+    }
+
+    vTaskDelete(NULL);
+}
+
 static void on_display_owner_changed(display_arbiter_owner_t owner, void *user_ctx)
 {
     (void)user_ctx;
 
-    if (owner == DISPLAY_ARBITER_OWNER_EMOTE) {
-        if (job_is_running(LAUNCHER_JOB_NAME)) {
-            ESP_LOGI(TAG, "Launcher still alive, skipping restart");
-            return;
+    if (owner != DISPLAY_ARBITER_OWNER_EMOTE) {
+        return;
+    }
+
+    /* Only skip restart if the launcher itself is currently running
+     * (e.g. during the app-launch transition when the launcher briefly
+     * releases the display before handing it to the app). */
+    char *jobs = calloc(1, 1024);
+    if (jobs) {
+        esp_err_t err = cap_lua_list_jobs("running", jobs, 1024);
+        if (err == ESP_OK) {
+            char tag[64];
+            int written = snprintf(tag, sizeof(tag), "name=%s", LAUNCHER_JOB_NAME);
+            if (written > 0 && (size_t)written < sizeof(tag) && strstr(jobs, tag)) {
+                ESP_LOGI(TAG, "Launcher is running, skipping restart");
+                free(jobs);
+                return;
+            }
         }
-        ESP_LOGI(TAG, "Display returned to emote owner, restarting launcher");
-        (void)launcher_run();
+        free(jobs);
+    }
+
+    /* Defer launcher restart so the exiting script's cleanup (lvgl,
+     * display DMA, job status) can fully settle before we spin up a
+     * new LVGL instance on the same panel hardware. */
+    ESP_LOGI(TAG, "Display returned to emote, scheduling deferred launcher restart (%lu ms)",
+             (unsigned long)LAUNCHER_RESTART_DELAY_MS);
+    if (xTaskCreate(restart_launcher_deferred, "launch_rst", 8192, NULL, 1, NULL) != pdPASS) {
+        ESP_LOGW(TAG, "Failed to create deferred restart task, launcher will not restart this cycle");
     }
 }
 

@@ -156,14 +156,12 @@ static void lua_display_exit_cleanup(lua_State *L)
 {
     (void)L;
 
-    if (!display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_LUA)) {
-        return;
-    }
-    ESP_LOGI(TAG, "Lua exit cleanup: display still owned by Lua, releasing");
-
-    if (display_hal_destroy() == ESP_OK) {
-        display_arbiter_release(DISPLAY_ARBITER_OWNER_LUA);
-    }
+    /* The display is a shared hardware singleton owned by the board
+     * manager. Individual script exit MUST NOT release the display
+     * arbiter — another script (e.g. app launched via thread.start)
+     * may be the current LUA owner. Arbitrator lifecycle is managed
+     * by lua_lvgl_exit_cleanup (which checks runtime_owner == L)
+     * and explicit lvgl.deinit / display.deinit calls. */
 }
 
 static int lua_display_init(lua_State *L)
