@@ -324,6 +324,12 @@ static esp_err_t boot_launcher_start_touch_monitor(void)
 
     uint16_t screen_width = 720;
     uint16_t screen_height = 720;
+    void *lcd_config = NULL;
+    if (esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, &lcd_config) == ESP_OK && lcd_config) {
+        dev_display_lcd_config_t *cfg = (dev_display_lcd_config_t *)lcd_config;
+        screen_width = cfg->lcd_width;
+        screen_height = cfg->lcd_height;
+    }
 
     touch_monitor_args_t *args = malloc(sizeof(touch_monitor_args_t));
     if (!args) {
