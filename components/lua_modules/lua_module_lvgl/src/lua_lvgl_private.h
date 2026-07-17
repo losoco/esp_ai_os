@@ -206,7 +206,10 @@ typedef struct {
     uint32_t tick_ms;
     uint32_t task_period_ms;
     void *draw_buf;
+    void *draw_buf2;   /* second buffer for double-buffering (DSI); NULL = single */
     size_t draw_buf_size;
+    bool double_buffer;
+    bool full_render;  /* true = LV_DISPLAY_RENDER_MODE_FULL (no strip-tearing) */
     bool flush_callbacks_registered;
     volatile bool flush_pending;
     lua_State *runtime_owner;

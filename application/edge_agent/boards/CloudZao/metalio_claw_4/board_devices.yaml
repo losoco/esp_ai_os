@@ -74,7 +74,7 @@ devices:
       dpi_config:
         virtual_channel: 0
         dpi_clk_src: MIPI_DSI_DPI_CLK_SRC_DEFAULT
-        dpi_clock_freq_mhz: 36
+        dpi_clock_freq_mhz: 48
         pixel_format: LCD_COLOR_PIXEL_FORMAT_RGB888
         in_color_format: LCD_COLOR_FMT_RGB888
         out_color_format: LCD_COLOR_FMT_RGB888

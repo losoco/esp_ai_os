@@ -339,7 +339,10 @@ static void lua_lvgl_release_runtime_locked(void)
     lua_lvgl_drain_pending_unrefs_locked(owner);
     heap_caps_free(s_lvgl.draw_buf);
     s_lvgl.draw_buf = NULL;
+    s_lvgl.draw_buf2 = NULL;
     s_lvgl.draw_buf_size = 0;
+    s_lvgl.double_buffer = false;
+    s_lvgl.full_render = false;
     s_lvgl.panel = NULL;
     s_lvgl.io = NULL;
     s_lvgl.width = 0;
@@ -424,12 +427,23 @@ static int lua_lvgl_init(lua_State *L)
                   5,
                   "panel_if must be 0, 1, or 2");
 
+    bool double_buffer = false;
+    bool full_render = false;
     if (lua_lvgl_opt_table(L, 6)) {
         buffer_lines = lua_lvgl_get_opt_int_field(L, 6, "buffer_lines", buffer_lines);
         tick_ms = lua_lvgl_get_opt_int_field(L, 6, "tick_ms", tick_ms);
         task_period_ms = lua_lvgl_get_opt_int_field(L, 6, "task_period_ms", task_period_ms);
+        double_buffer = lua_lvgl_get_opt_bool_field(L, 6, "double_buffer",
+            (panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI));
+        full_render = lua_lvgl_get_opt_bool_field(L, 6, "full_render",
+            (panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI));
+    } else {
+        double_buffer = (panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI);
+        full_render = (panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI);
     }
-    luaL_argcheck(L, buffer_lines > 0 && buffer_lines <= height, 6, "buffer_lines must be in range 1..height");
+    if (!full_render) {
+        luaL_argcheck(L, buffer_lines > 0 && buffer_lines <= height, 6, "buffer_lines must be in range 1..height");
+    }
     luaL_argcheck(L, tick_ms > 0, 6, "tick_ms must be positive");
     luaL_argcheck(L, task_period_ms > 0, 6, "task_period_ms must be positive");
 
@@ -482,22 +496,41 @@ static int lua_lvgl_init(lua_State *L)
     }
     s_lvgl.display_owner_acquired = true;
 
-    draw_buf_size = (size_t)width * (size_t)buffer_lines * sizeof(lv_color_t);
-    if (panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
-        draw_buf = heap_caps_malloc(draw_buf_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+    if (full_render) {
+        /* Full-frame buffer: one complete screen.  Eliminates strip-tearing that
+         * occurs with PARTIAL mode when the panel scans the frame buffer while
+         * individual strips are still being DMA'd in.  Matches the TRIPLE_FULL
+         * approach used by MetalioClaw4's esp_lvgl_adapter. */
+        draw_buf_size = (size_t)width * (size_t)height * sizeof(lv_color_t);
     } else {
-        draw_buf = heap_caps_malloc(draw_buf_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        draw_buf_size = (size_t)width * (size_t)buffer_lines * sizeof(lv_color_t);
     }
-    if (!draw_buf && panel_if != LUA_MODULE_LVGL_PANEL_IF_IO) {
-        draw_buf = heap_caps_malloc(draw_buf_size, MALLOC_CAP_8BIT);
-    }
-    if (!draw_buf && panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
-        draw_buf = heap_caps_malloc(draw_buf_size, MALLOC_CAP_8BIT | MALLOC_CAP_DMA);
-    }
-    if (!draw_buf) {
-        (void)display_arbiter_release(DISPLAY_ARBITER_OWNER_LUA);
-        s_lvgl.display_owner_acquired = false;
-        return luaL_error(L, "lvgl draw buffer allocation failed; reduce buffer_lines");
+    {
+        size_t draw_buf_alloc = draw_buf_size;
+        void *draw_buf2 = NULL;
+        if (double_buffer) {
+            draw_buf_alloc = draw_buf_size * 2;
+        }
+        if (panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
+            draw_buf = heap_caps_malloc(draw_buf_alloc, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+        } else {
+            draw_buf = heap_caps_malloc(draw_buf_alloc, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        }
+        if (!draw_buf && panel_if != LUA_MODULE_LVGL_PANEL_IF_IO) {
+            draw_buf = heap_caps_malloc(draw_buf_alloc, MALLOC_CAP_8BIT);
+        }
+        if (!draw_buf && panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
+            draw_buf = heap_caps_malloc(draw_buf_alloc, MALLOC_CAP_8BIT | MALLOC_CAP_DMA);
+        }
+        if (!draw_buf) {
+            (void)display_arbiter_release(DISPLAY_ARBITER_OWNER_LUA);
+            s_lvgl.display_owner_acquired = false;
+            return luaL_error(L, "lvgl draw buffer allocation failed; reduce buffer_lines");
+        }
+        if (draw_buf && double_buffer) {
+            draw_buf2 = (uint8_t *)draw_buf + draw_buf_size;
+        }
+        s_lvgl.draw_buf2 = draw_buf2;
     }
 
     err = lua_lvgl_lock();
@@ -539,13 +572,16 @@ static int lua_lvgl_init(lua_State *L)
     s_lvgl.task_period_ms = (uint32_t)task_period_ms;
     s_lvgl.draw_buf = draw_buf;
     s_lvgl.draw_buf_size = draw_buf_size;
+    s_lvgl.double_buffer = double_buffer;
+    s_lvgl.full_render = full_render;
     s_lvgl.display = display;
     s_lvgl.runtime_initialized = true;
     s_lvgl.runtime_owner = L;
     s_lvgl.task_stop = false;
 
     lv_display_set_user_data(display, &s_lvgl);
-    lv_display_set_buffers(display, draw_buf, NULL, (uint32_t)draw_buf_size, LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(display, draw_buf, s_lvgl.draw_buf2, (uint32_t)draw_buf_size,
+                           full_render ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
 #if LV_COLOR_DEPTH == 24
     lv_display_set_color_format(display, LV_COLOR_FORMAT_RGB888);
 #endif

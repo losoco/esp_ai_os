@@ -44,8 +44,17 @@ static esp_err_t files_run_handler(httpd_req_t *req)
     cJSON_Delete(root);
 
     char output[1024] = {0};
+
+    /* Stop the launcher before launching the new app.  This mirrors
+     * launcher.lua's run_app(): deinit_lvgl() → thread.start() → exit.
+     * Without this the launcher's LVGL runtime still holds the display
+     * owner (lua_depth > 0), so when the web-launched app exits via
+     * swipe-up the display_arbiter never transitions to EMOTE and the
+     * boot_launcher never restarts the launcher. */
+    cap_lua_stop_job("boot_launcher", 500, output, sizeof(output));
+
     esp_err_t err = cap_lua_run_script_async(resolved_path, args_json, timeout_ms,
-                                             NULL, NULL, false, output, sizeof(output));
+                                             NULL, "display", false, output, sizeof(output));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, max-age=0");
 
