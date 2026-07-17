@@ -171,8 +171,8 @@ local function init_lvgl()
     panel, io, W, H, panel_if = board_manager.get_display_lcd_params("display_lcd")
     if not panel then error("display_lcd not found") end
     local buf_lines = 20
-    if panel_if == 2 then  -- MIPI_DSI: larger buffer reduces DMA flush count
-        buf_lines = math.min(H, 120)
+    if panel_if == 2 then  -- MIPI_DSI: full-screen buffer, 1 flush/frame
+        buf_lines = 360
     end
     lvgl.init(panel, io, W, H, panel_if, { buffer_lines = buf_lines, tick_ms = 5, task_period_ms = 10 })
     local ok, h = pcall(board_manager.get_lcd_touch_handle, "lcd_touch")

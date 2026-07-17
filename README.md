@@ -1,199 +1,166 @@
-<div align="center">
+# ESP AI OS
 
-  <a href="https://esp-claw.com/en/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="./docs/src/assets/logos/logo-f.svg" />
-      <source media="(prefers-color-scheme: light)" srcset="./docs/src/assets/logos/logo.svg" />
-      <img alt="ESP-Claw logo" src="./docs/src/assets/logos/logo.svg" width="50%" />
-    </picture>
-  </a>
+**ESP AI OS** is an embedded operating system layer built on Espressif chips, transforming the ESP-Claw AI agent framework into a complete application platform. It provides a touch-driven app launcher, display server, app lifecycle management, and a hardware abstraction layer — turning a bare-metal IoT device into a palm-sized AI computer.
 
-  <h1>ESP-Claw 🦞 AI Agent Framework for IoT Devices</h1>
+The flagship platform is **ESP32-P4** (dual-core RISC-V, 720×720 MIPI-DSI, 32 MB PSRAM), with support for ESP32-S3, ESP32-C5, and ESP32-S31.
 
-  <h3>💬 Chat as Creation · 🚀 Millisecond Response · 🧩 Smart and Extensible · 😋 Grows with You</h3>
+---
 
-  <p>
-    <a href="https://www.espressif.com">
-      <img src="https://img.shields.io/badge/runs_on-ESP32_Series-red?style=flat-square" alt="Runs on ESP32 Series" />
-    </a>
-    <a href="./LICENSE">
-      <img src="https://img.shields.io/github/license/espressif/esp-claw?style=flat-square" alt="License" />
-    </a>
-  </p>
+## Vision
 
-  <a href="https://esp-claw.com/en/">Home</a>
-  |
-  <a href="https://esp-claw.com/en/tutorial/">Docs</a>
-  |
-  <a href="https://esp-claw.com/en/flash/">Online Flashing</a>
-  |
-  <a href="https://esp-claw.com/en/reference-project/build-from-source/">Build from Source</a>
-  |
-  <a href="./README_CN.md">简体中文</a>
+> **Turn Espressif chips into AI-native application platforms.**
 
-</div>
+ESP AI OS sits between the ESP-Claw AI agent runtime and the hardware, providing the missing layer that turns a collection of Lua scripts into a cohesive user experience:
 
-**ESP-Claw** is Espressif's **Chat Coding** AI agent framework for IoT devices. It defines device behavior through conversation and completes the full loop of sensing, decision-making, and execution locally on Espressif chips. Inspired by the OpenClaw concept and reimplemented in C, ESP-Claw is lightweight, intelligent, and continuously evolving. With just an ESP32-series chip that costs only a few dollars, you can experience what makes ESP-Claw so nimble.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Applications                             │
+│   Games │ Sensors │ Camera │ Level │ Weather │ User Apps        │
+├─────────────────────────────────────────────────────────────────┤
+│                     ESP AI OS                                    │
+│   Launcher │ Display Server │ App Lifecycle │ Hardware Abst.    │
+├─────────────────────────────────────────────────────────────────┤
+│                     ESP-Claw AI Runtime                          │
+│   Agent Core │ Event Router │ Memory │ Skills │ Capabilities    │
+├─────────────────────────────────────────────────────────────────┤
+│                     ESP-IDF + Hardware                           │
+│   ESP32-P4 │ MIPI-DSI │ PSRAM │ Flash │ Touch │ Sensors         │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-<div align="center">
-  <img alt="From traditional IoT to Edge Agent" src="./docs/static/from-traditional-iot-to-edge-agent.webp" width="90%" />
-</div>
+---
 
-## 🌟 Key Features
+## The OS Layer
 
-Traditional IoT usually stops at connectivity: devices can connect to the network, but they cannot think; they can execute commands, but they cannot make decisions. ESP-Claw brings the Agent Runtime down onto Espressif chips, turning them from passive executors into active decision-making centers.
+| OS Component   | Android Equivalent | ESP AI OS Implementation                                          |
+| -------------- | ------------------ | ----------------------------------------------------------------- |
+| Home Screen    | Launcher           | `launcher.lua` — desktop grid, app drawer, recent apps         |
+| Display Server | SurfaceFlinger     | `display_arbiter` — exclusive display ownership per app        |
+| Window Manager | WindowManager      | `lua_lvgl_runtime` — LVGL 9 renderer with DSI double-buffering |
+| App Lifecycle  | ActivityManager    | `boot_launcher.c` — auto-launch, auto-restart, swipe-to-kill   |
+| App Package    | APK                | Lua script +`manifest.json` with schema validation              |
+| Hardware Bus   | HIDL/HAL           | `board_manager` — unified peripheral discovery and access      |
+| Display Driver | DRM/KMS            | `esp_lcd_panel` (DSI/SPI/RGB) + per-panel vendor drivers        |
+| Input          | InputFlinger       | LVGL indev + touch gesture detector (swipe up = kill app)         |
+| Filesystem     | VFS                | `/system` (read-only firmware) + `/sdcard` (writable data)    |
 
-<table align="center">
-  <tr>
-    <th><div align="center"> 💬 Chat as Creation </div></th>
-    <th><div align="center"> ⚙️ Event Driven </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        IM chat + dynamic Lua loading
-        <br />
-        Ordinary users can define device behavior without programming
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        Any event can trigger the Agent Loop and more
-        <br />
-        Response can be as fast as milliseconds
-      </div>
-    </th>
-  </tr>
-  <tr>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/717a4dae-fbd3-4364-afca-2d45432f156e" />
-    </th>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/5a274a4a-e1dc-4c13-81aa-fb1c22d470bf" />
-    </th>
-  </tr>
+---
 
-  <tr>
-    <td colspan="2"><!-- spacer row --></td>
-  </tr>
+## App Lifecycle
 
-  <tr>
-    <th><div align="center"> 🧬 Structured Memory </div></th>
-    <th><div align="center"> 📤 MCP Communication </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        Organize memories in a structured way
-        <br />
-        Privacy stays off the cloud
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        Supports standard MCP devices
-        <br />
-        Works as both Server and Client
-      </div>
-    </th>
-  </tr>
-  <tr>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/2c8bcaa4-3606-49d3-9b70-86ad3234d48f" />
-    </th>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/b1f71cee-e428-4b92-ad7e-d7816839f866" />
-    </th>
-  </tr>
+Each app is a Lua script with a `manifest.json`. Only one app runs at a time — the foreground-exclusive model guarantees deterministic hardware access on embedded devices.
 
-  <tr>
-    <td colspan="2"><!-- spacer row --></td>
-  </tr>
+```
+User taps Launch
+      │
+      ▼
+  launcher deinits LVGL, releases display
+      │
+      ▼
+  thread.start(app) → app owns display + peripherals
+      │
+      ▼
+  launcher exits completely (zero resource footprint)
+      │
+      ▼
+  app runs until exit or swipe-up-to-kill
+      │
+      ▼
+  boot_launcher detects no running scripts → auto-restarts launcher
+```
 
-  <tr>
-    <th><div align="center"> 🧰 Ready Out of the Box </div></th>
-    <th><div align="center"> 🧩 Component Extensibility </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        Quick setup with Board Manager
-        <br />
-        Supports one-click flashing
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        Every module can be trimmed as needed
-        <br />
-        You can also add your own component integrations
-      </div>
-    </th>
-  </tr>
-</table>
+---
 
-## 📦 Quick Start
+## Key Features
 
-<div align="center">
-  <img src="docs/src/assets/images/claw-breadboard-photo.jpg" width="80%" alt="ESP-Claw on ESP32-S3 Breadboard" />
-</div>
+- **Touch-Driven App Platform** — 4×3 desktop grid with pagination, scrollable drawer, app detail view, recent history
+- **Full-Screen DSI Rendering** — `LV_DISPLAY_RENDER_MODE_FULL` double-buffering, 1 flush per frame, ~2 MB PSRAM, zero tearing on 720×720 panels
+- **AI Agent Runtime** — Chat Coding via IM channels, event-driven agent loop, structured memory, MCP client/server
+- **Clean Light Theme** — Modern UI with white cards, blue accents, optimized for 3.95" square displays
+- **Hardware Abstraction** — Board Manager auto-discovers peripherals; apps use `board_manager.get_display_lcd_params()` without hard-coded pin numbers
+- **Over-the-Air Development** — Push updated `launcher.lua` or app scripts to `/sdcard` without re-flashing firmware
 
-ESP-Claw now supports a wide range of development boards based on ESP32-S3, ESP32-P4, ESP32-C5, and ESP32-S31, including breadboards, M5Stack CoreS3, and many others. Supported boards in [`./application/edge_agent/boards/`](./application/edge_agent/boards/) can be flashed online directly: configuration and flashing are done entirely in the browser, with no need to compile firmware locally or install a development environment first.
+---
 
-<div align="center">
-  <a href="https://esp-claw.com/en/flash/">
-    <img src="./docs/static/flash-via-browser-button.svg" width="200" />
-  </a>
-</div>
+## Performance (ESP32-P4 + MIPI-DSI)
 
-You can also build ESP-Claw locally. Please refer to the [local build documentation](https://esp-claw.com/en/tutorial/) for board adaptation, building, and flashing. Boards not listed above, as well as chips like the ESP32-P4, can also be supported through local builds and flashing.
+| Metric             | Value                                                             |
+| ------------------ | ----------------------------------------------------------------- |
+| Display resolution | 720 × 720, 24 bpp                                                |
+| LVGL render mode   | `FULL` (double-buffered)                                        |
+| Display buffers    | 2 × 720 × 720 × 2 =**2 MB PSRAM**                        |
+| Flushes per frame  | **1**                                                       |
+| DMA pipeline       | Render buf1 while DSI transfers buf2                              |
+| Panel wake-up      | `DISPON (0x29)` only on re-init; never sends `DISPOFF (0x28)` |
+| Backlight          | Board-native LEDC PWM (not DCS commands)                          |
 
-You can find practical examples in our [documentation](https://esp-claw.com/en/tutorial/).
+---
 
-### Supported Platforms
+## Quick Start
 
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/static/claw-providers-white.webp" />
-    <source media="(prefers-color-scheme: light)" srcset="./docs/static/claw-providers-black.webp" />
-    <img alt="Supported Platforms" src="./docs/static/claw-providers-black.webp" width="90%" />
-  </picture>
-</div>
+```bash
+# Install ESP-IDF v5.5.4
+git clone -b v5.5.4 --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf && ./install.sh esp32p4 && . ./export.sh
 
-**LLM**: ESP-Claw now supports both OpenAI-style APIs and Anthropic-style APIs. It natively supports GPT models from OpenAI, Qwen models from Alibaba Cloud Bailian, Claude models from Anthropic, DeepSeek models from DeepSeek API, and also supports custom endpoints.
+# Build for Metalio Claw4 (ESP32-P4 + MIPI-DSI)
+cd application/edge_agent
+idf.py bmgr -c ./boards -b metalio_claw_4
+idf.py build
+idf.py flash monitor
+```
 
-> [!TIP]
->
-> ESP-Claw's self-programming capability depends on models with strong tool use and instruction-following ability. We recommend `gpt-5.4`, `qwen3.6-plus`, `claude4.6-sonnet`, `deepseek-v4-pro` or models with comparable capability.
+---
 
-**IM**: ESP-Claw supports Telegram, QQ, Feishu, and WeChat, and can be extended further.
+## Development
 
-## Development Plan
+```bash
+# Push launcher to device for live development
+python tools/esp-claw-cli/esp-claw-cli.py push \
+  application/edge_agent/fatfs_image/system/launcher.lua \
+  /launcher.lua
 
-ESP-Claw is still under active development. Feel free to open an issue to report problems or request features. You can also share your ideas through our [online survey (in Chinese)](https://fcn5wbhnyubf.feishu.cn/share/base/form/shrcndYcjbGFY1ymttTSyYoGIPh).
+# Device will auto-load /launcher.lua over the built-in version
+```
 
-[Click here to view our TODO List (in Chinese)](https://fcn5wbhnyubf.feishu.cn/wiki/SRlgwWUYei4WmykU8uMcUtzTnFf?table=tblWSgzWcyW7jv7B&view=vewaP9B0KX) and vote for the features or issues you care about. That helps us prioritize them sooner.
+---
 
+## Project Structure
 
+```
+application/edge_agent/
+├── boards/CloudZao/metalio_claw_4/    # ESP32-P4 flagship board
+│   ├── components/esp_lcd_nv3051f/    # NV3051F DSI panel driver
+│   └── setup_device.c                 # Board init, panel timing
+├── fatfs_image/system/launcher.lua    # ESP AI OS Home Screen
+├── fatfs_image/system/apps/           # Built-in system apps
+components/
+├── common/boot_launcher/              # App lifecycle manager
+│   └── boot_launcher.c                # Auto-launch, restart, swipe-to-kill
+├── lua_modules/
+│   ├── lua_module_lvgl/               # LVGL 9 + DSI double-buffering
+│   │   └── src/lua_lvgl_runtime.c     # Display server, flush pipeline
+│   ├── lua_module_display/            # Display HAL (framebuffer mgmt)
+│   ├── lua_module_board_manager/      # Peripheral discovery & access
+│   └── lua_module_storage/            # /system + /sdcard VFS
+├── claw_modules/
+│   ├── claw_core/                     # AI agent runtime
+│   ├── claw_event_router/             # Declarative event routing
+│   ├── claw_memory/                   # Session & profile memory
+│   └── claw_skill/                    # Skill management
+└── claw_capabilities/                 # Concrete agent capabilities
+```
 
-## 📷 Follow Us
+---
 
-If this project helps you, please consider giving it a star. ⭐⭐⭐⭐⭐
+![1784258401647](image/README/1784258401647.png)
 
-### Star History
+![1784257966824](image/README/1784257966824.png)
 
-<div align="center">
-  <a href="https://www.star-history.com/?repos=espressif%2Fesp-claw&type=date&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&theme=dark&legend=top-left" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&legend=top-left" />
-    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&legend=top-left" />
-  </picture>
-  </a>
-</div>
+![1784257979887](image/README/1784257979887.png)
 
-## Acknowledgements
+## License
 
-Inspired by [OpenClaw](https://github.com/openclaw/openclaw).
+Licensed under Apache-2.0. See [LICENSE](./LICENSE).
 
-The implementation of Agent Loop, IM communication, and related capabilities on ESP32 also draws on [MimiClaw](https://github.com/memovai/mimiclaw).
+Built on [ESP-Claw](https://github.com/espressif/esp-claw) by Espressif. Inspired by [OpenClaw](https://github.com/openclaw/openclaw).

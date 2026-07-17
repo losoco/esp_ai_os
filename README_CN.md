@@ -1,197 +1,165 @@
-<div align="center">
+# ESP AI OS
 
-  <a href="https://esp-claw.com/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="./docs/src/assets/logos/logo-f.svg" />
-      <source media="(prefers-color-scheme: light)" srcset="./docs/src/assets/logos/logo.svg" />
-      <img alt="ESP-Claw logo" src="./docs/src/assets/logos/logo.svg" width="50%" />
-    </picture>
-  </a>
+**ESP AI OS** 是构建在乐鑫芯片上的嵌入式操作系统层，将 ESP-Claw AI Agent 框架转变为一个完整的应用平台。它提供触控驱动的应用启动器、显示服务、应用生命周期管理和硬件抽象层 — 将裸机 IoT 设备变成掌上 AI 计算机。
 
-  <h1>ESP-Claw 🦞 物联网设备 AI 智能体框架</h1>
+旗舰平台为 **ESP32-P4**（双核 RISC-V，720×720 MIPI-DSI，32 MB PSRAM），同时支持 ESP32-S3、ESP32-C5 和 ESP32-S31。
 
-  <h3>💬聊天即造物 · 🚀毫秒级响应 · 🧩智能可扩展 · 😋越用越懂你</h3>
+---
 
-  <p>
-    <a href="https://www.espressif.com">
-      <img src="https://img.shields.io/badge/runs_on-ESP32_Series-red?style=flat-square" alt="Runs on ESP32 Series" />
-    </a>
-    <a href="./LICENSE">
-      <img src="https://img.shields.io/github/license/espressif/esp-claw?style=flat-square" alt="License" />
-    </a>
-  </p>
+## 愿景
 
-  <a href="https://esp-claw.com/zh-cn/">主页</a>
-  |
-  <a href="https://esp-claw.com/zh-cn/tutorial/">文档</a>
-  |
-  <a href="https://esp-claw.com/zh-cn/flash/">在线烧录</a>
-  |
-  <a href="https://esp-claw.com/zh-cn/reference-project/build-from-source/">源码编译</a>
-  |
-  <a href="./README.md">English</a>
+> **让乐鑫芯片成为 AI 原生的应用平台。**
 
-</div>
+ESP AI OS 位于 ESP-Claw AI Agent 运行时与硬件之间，提供了将一系列 Lua 脚本串联为统一用户体验的关键层：
 
-**ESP-Claw** 是乐鑫推出的面向物联网设备的 **Chat Coding「聊天造物」** 式 AI Agent 框架，以对话定义设备行为，在乐鑫芯片上本地完成感知、决策与执行的完整闭环。ESP-Claw 自 OpenClaw 理念出发，用 C 语言重新实现，轻盈、智能、成长。仅需一块几美元的 ESP32 系列芯片，便可体验 ESP-Claw 的轻灵特性。
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        应用层                                    │
+│   游戏 │ 传感器 │ 相机 │ 水平仪 │ 天气 │ 用户应用                 │
+├─────────────────────────────────────────────────────────────────┤
+│                     ESP AI OS                                    │
+│   启动器 │ 显示服务 │ 应用生命周期 │ 硬件抽象                      │
+├─────────────────────────────────────────────────────────────────┤
+│                  ESP-Claw AI Runtime                              │
+│   Agent Core │ 事件路由 │ 记忆 │ 技能 │ 能力                      │
+├─────────────────────────────────────────────────────────────────┤
+│                    ESP-IDF + 硬件                                 │
+│   ESP32-P4 │ MIPI-DSI │ PSRAM │ Flash │ 触控 │ 传感器             │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-<div align="center">
-  <img alt="From traditional IoT to Edge Agent" src="./docs/static/from-traditional-iot-to-edge-agent.webp" width="90%" />
-</div>
+---
 
-## 🌟核心特性
+## OS 层对照
 
-传统 IoT 只停留在连接层——设备能联网，却不能思考；能执行，却不能决策。ESP-Claw 将 Agent Runtime 下沉至乐鑫芯片，让芯片从被动的"执行端"转变为主动的"决策中心"。
+| OS 组件      | Android 等价物  | ESP AI OS 实现                                        |
+| ------------ | --------------- | ----------------------------------------------------- |
+| 主屏幕       | Launcher        | `launcher.lua` — 桌面网格、应用抽屉、最近使用      |
+| 显示服务     | SurfaceFlinger  | `display_arbiter` — 按应用独占显示所有权           |
+| 窗口管理     | WindowManager   | `lua_lvgl_runtime` — LVGL 9 渲染器 + DSI 双缓冲    |
+| 应用生命周期 | ActivityManager | `boot_launcher.c` — 自动启动、自动恢复、上滑杀进程 |
+| 应用包       | APK             | Lua 脚本 +`manifest.json`（schema 校验）            |
+| 硬件总线     | HIDL/HAL        | `board_manager` — 统一外设发现与访问               |
+| 显示驱动     | DRM/KMS         | `esp_lcd_panel`（DSI/SPI/RGB）+ 各面板厂驱动        |
+| 输入         | InputFlinger    | LVGL indev + 触摸手势检测（上滑 = 杀应用）            |
+| 文件系统     | VFS             | `/system`（只读固件）+ `/sdcard`（可写数据）      |
 
-<table align="center">
-  <tr>
-    <th><div align="center"> 💬 聊天造物 </div></th>
-    <th><div align="center"> ⚙️ 事件驱动 </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        IM 聊天 + Lua 动态加载
-        <br />
-        普通用户即可定义设备行为，无需编程
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        任意事件可触发 Agent Loop 等动作
-        <br />
-        最快毫秒级响应
-      </div>
-    </th>
-  </tr>
-  <tr>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/9ec020c2-d133-4ab5-adaa-28817415bc26" />
-    </th>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/c3613e52-61a8-49c2-a224-4a436a4c9e3e" />
-    </th>
-  </tr>
+---
 
-  <tr>
-    <td colspan="2"><!-- 分隔行 --></td>
-  </tr>
+## 应用生命周期
 
-  <tr>
-    <th><div align="center"> 🧬 结构化记忆 </div></th>
-    <th><div align="center"> 📤 MCP 通讯 </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        有条理地沉淀记忆内容
-        <br />
-        隐私不上云
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        支持连接标准 MCP 设备
-        <br />
-        具备 Server/Client 双重身份
-      </div>
-    </th>
-  </tr>
-  <tr>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/1fe6d67c-469d-405d-a6ec-648aa2681b15" />
-    </th>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/b582ac5b-dd14-486f-b531-495597aa2af6" />
-    </th>
-  </tr>
+每个应用是一个包含 `manifest.json` 的 Lua 脚本。同一时间只有一个应用在前台运行 — 独占模式保证嵌入式设备上硬件访问的确定性。
 
-  <tr>
-    <td colspan="2"><!-- 分隔行 --></td>
-  </tr>
+```
+用户点击 Launch
+      │
+      ▼
+  launcher 释放 LVGL，归还显示所有权
+      │
+      ▼
+  thread.start(app) → app 独占显示 + 外设
+      │
+      ▼
+  launcher 完全退出（零资源占用）
+      │
+      ▼
+  app 运行直到自行退出或上滑被杀
+      │
+      ▼
+  boot_launcher 检测到无运行脚本 → 自动重启 launcher
+```
 
-  <tr>
-    <th><div align="center"> 🧰 开箱即用 </div></th>
-    <th><div align="center"> 🧩 组件扩展 </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        基于 Board Manager 快速配置
-        <br />
-        支持一键烧录
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        所有模块均可按需裁剪
-        <br />
-        也可自行添加组件适配
-      </div>
-    </th>
-  </tr>
-</table>
+---
 
-## 📦快速开始
+## 核心特性
 
-<div align="center">
-  <img src="docs/src/assets/images/claw-breadboard-photo.jpg" width="80%" alt="ESP-Claw on ESP32-S3 Breadboard" />
-</div>
+- **触控应用平台** — 4×3 桌面网格 + 翻页、可滚动应用抽屉、应用详情、最近使用历史
+- **全屏 DSI 渲染** — `LV_DISPLAY_RENDER_MODE_FULL` 双缓冲，1 次 flush/帧，~2 MB PSRAM，720×720 面板零撕裂
+- **AI Agent 运行时** — 通过 IM 频道对话编程、事件驱动 Agent 循环、结构化记忆、MCP 客户端/服务端
+- **清新浅色主题** — 白色卡片 + 蓝色点缀，为 3.95 寸方形屏优化
+- **硬件抽象** — Board Manager 自动发现外设；应用通过 `board_manager.get_display_lcd_params()` 访问硬件，无需硬编码引脚号
+- **无线开发** — 将 `launcher.lua` 或应用脚本推送到 `/sdcard`，无需重新烧录固件
 
-ESP-Claw 目前已适配基于 ESP32-S3、ESP32-P4、ESP32-C5、ESP32-S31 的多款开发版，例如面包板、M5Stack CoreS3 等。[已支持的开发版](./application/edge_agent/boards/)可以直接在线烧录：通过网页即可完成配置与烧录，无需额外编译固件或安装开发环境。
+---
 
-<div align="center">
-  <a href="https://esp-claw.com/zh-cn/flash/">
-    <img src="./docs/static/flash-via-browser-button.svg" width="200" />
-  </a>
-</div>
+## 性能指标（ESP32-P4 + MIPI-DSI）
 
-你也可以在本地编译 ESP-Claw。请参考[本地编译文档](https://esp-claw.com/zh-cn/tutorial/)适配、编译和烧录。未列于上述列表的开发版、ESP32-P4 等芯片还可通过本地编译烧录实现。
+| 指标            | 值                                                               |
+| --------------- | ---------------------------------------------------------------- |
+| 显示分辨率      | 720 × 720，24 bpp                                               |
+| LVGL 渲染模式   | `FULL`（双缓冲）                                               |
+| 显示缓冲        | 2 × 720 × 720 × 2 =**2 MB PSRAM**                       |
+| 每帧 flush 次数 | **1**                                                      |
+| DMA 流水线      | 渲染 buf1 同时 DSI 传输 buf2                                     |
+| 面板唤醒        | 仅 re-init 时发送 `DISPON (0x29)`；永不发送 `DISPOFF (0x28)` |
+| 背光            | 板级原生 LEDC PWM（非 DCS 指令）                                 |
 
-我们的[文档](https://esp-claw.com/zh-cn/tutorial/)中有可供参考的使用样例。
+---
 
-### 支持的平台
+## 快速开始
 
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/static/claw-providers-white.webp" />
-    <source media="(prefers-color-scheme: light)" srcset="./docs/static/claw-providers-black.webp" />
-    <img alt="Supported Platforms" src="./docs/static/claw-providers-black.webp" width="90%" />
-  </picture>
-</div>
+```bash
+# 安装 ESP-IDF v5.5.4
+git clone -b v5.5.4 --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf && ./install.sh esp32p4 && . ./export.sh
 
-**LLM**: ESP-Claw 现已支持 OpenAI 风格 API 和 Anthropic 风格 API，原生支持 OpenAI 提供的 GPT 系列模型、阿里云百炼提供的 Qwen 系列模型、Anthropic 提供的 Claude 系列模型、DeepSeek 官方 API 提供的 DeepSeek 模型等，也可以自定义 Endpoint。
+# 为 Metalio Claw4 构建（ESP32-P4 + MIPI-DSI）
+cd application/edge_agent
+idf.py bmgr -c ./boards -b metalio_claw_4
+idf.py build
+idf.py flash monitor
+```
 
-> [!TIP]
->
-> ESP-Claw 的自编程能力需要调用工具和遵循指令能力较强的模型，推荐使用 `gpt-5.4`、`qwen3.6-plus`、`claude4.6-sonnet`、`deepseek-v4-pro` 或类似性能的模型。
+---
 
-**IM**: ESP-Claw 支持 Telegram、QQ、飞书、微信四大聊天软件，并可扩展。
+## 开发
 
-## 🔧开发计划
+```bash
+# 推送 launcher 到设备进行实时开发
+python tools/esp-claw-cli/esp-claw-cli.py push \
+  application/edge_agent/fatfs_image/system/launcher.lua \
+  /launcher.lua
 
-ESP-Claw 目前仍处于活跃开发阶段，欢迎向我们提交 Issue 反馈问题或提交 Feature 请求。也可以通过[在线问卷](https://fcn5wbhnyubf.feishu.cn/share/base/form/shrcndYcjbGFY1ymttTSyYoGIPh)告诉我们你的想法。
+# 设备将自动加载 SD 卡上的 launcher，覆盖内置版本
+```
 
-[点此查看我们的 TODO List](https://fcn5wbhnyubf.feishu.cn/wiki/SRlgwWUYei4WmykU8uMcUtzTnFf?table=tblWSgzWcyW7jv7B&view=vewaP9B0KX)，为你心仪的 Feature / 关注的 Issue 投票，我们可以更早实现/修复！
+---
 
-## 📷关注我们
+## 项目结构
 
-如果这个项目对您有所帮助，欢迎点亮一颗星！⭐⭐⭐⭐⭐
+```
+application/edge_agent/
+├── boards/CloudZao/metalio_claw_4/    # ESP32-P4 旗舰板
+│   ├── components/esp_lcd_nv3051f/    # NV3051F DSI 面板驱动
+│   └── setup_device.c                 # 板级初始化、面板时序
+├── fatfs_image/system/launcher.lua    # ESP AI OS 主屏幕
+├── fatfs_image/system/apps/           # 内置系统应用
+components/
+├── common/boot_launcher/              # 应用生命周期管理器
+│   └── boot_launcher.c                # 自动启动、重启、上滑杀进程
+├── lua_modules/
+│   ├── lua_module_lvgl/               # LVGL 9 + DSI 双缓冲
+│   │   └── src/lua_lvgl_runtime.c     # 显示服务、flush 流水线
+│   ├── lua_module_display/            # 显示 HAL（帧缓冲管理）
+│   ├── lua_module_board_manager/      # 外设发现与访问
+│   └── lua_module_storage/            # /system + /sdcard VFS
+├── claw_modules/
+│   ├── claw_core/                     # AI Agent 运行时
+│   ├── claw_event_router/             # 声明式事件路由
+│   ├── claw_memory/                   # 会话与档案记忆
+│   └── claw_skill/                    # 技能管理
+└── claw_capabilities/                 # 具体 Agent 能力
+```
 
-### Star History
+---
 
-<div align="center">
-  <a href="https://www.star-history.com/?repos=espressif%2Fesp-claw&type=date&legend=top-left">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&theme=dark&legend=top-left" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&legend=top-left" />
-      <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&legend=top-left" />
-    </picture>
-  </a>
-</div>
 
-## 致谢
 
-灵感来自 [OpenClaw](https://github.com/openclaw/openclaw)。
+<pre class="vditor-reset" placeholder="" contenteditable="true" spellcheck="false"><p data-block="0"><br class="Apple-interchange-newline"/><img src="https://file+.vscode-resource.vscode-cdn.net/Users/ryan/workspace/esp-claw_origin/image/README/1784258401647.png" alt="1784258401647"/></p><p data-block="0"><img src="https://file+.vscode-resource.vscode-cdn.net/Users/ryan/workspace/esp-claw_origin/image/README/1784257966824.png" alt="1784257966824"/></p><p data-block="0"><img src="https://file+.vscode-resource.vscode-cdn.net/Users/ryan/workspace/esp-claw_origin/image/README/1784257979887.png" alt="1784257979887"/></p></pre>
 
-Agent Loop 和 IM 通讯等功能在 ESP32 上的实现参考了 [MimiClaw](https://github.com/memovai/mimiclaw)。
+
+## License
+
+Apache-2.0 协议。详见 [LICENSE](./LICENSE)。
+
+基于 Espressif [ESP-Claw](https://github.com/espressif/esp-claw) 构建。灵感源自 [OpenClaw](https://github.com/openclaw/openclaw)。

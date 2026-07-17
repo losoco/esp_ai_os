@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "bt_audio_mode",
+  "name": "BT Audio Mode",
+  "version": "1.0.0",
+  "description": "Touch UI to switch Bluetooth audio chip mode: local, pair, music.",
+  "entry": "main.lua",
+  "category": [
+    "tool",
+    "audio"
+  ],
+  "requires": {
+    "lua_modules": [
+      "display",
+      "board_manager",
+      "lcd_touch",
+      "delay",
+      "bt_audio"
+    ],
+    "peripherals": [
+      "display",
+      "touch"
+    ]
+  },
+  "launch": {
+    "timeout_ms": 0,
+    "exclusive": "display",
+    "replace": true
+  }
+}
