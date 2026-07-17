@@ -27,7 +27,7 @@ static const char *TAG = "boot_launcher";
 #define LAUNCHER_JOB_NAME       "boot_launcher"
 #define SCANNER_JOB_NAME        "launcher_scanner"
 #define LAUNCHER_ARGS           "{\"__launcher_worker\":true}"
-#define SCRIPT_STOP_WAIT_MS     20
+#define SCRIPT_STOP_WAIT_MS     500
 #define LAUNCHER_RESTART_DELAY_MS 300
 
 #if CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT
