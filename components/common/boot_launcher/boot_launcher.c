@@ -53,51 +53,13 @@ static TaskHandle_t s_stop_task;
 
 static void stop_all_scripts_except_launcher(void)
 {
-    char *list = calloc(1, 1024);
-    if (!list) {
-        return;
-    }
-
-    esp_err_t err = cap_lua_list_jobs(NULL, list, 1024);
+    char output[128] = {0};
+    esp_err_t err = cap_lua_stop_all_jobs("display", SCRIPT_STOP_WAIT_MS, output, sizeof(output));
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to list jobs: %s", esp_err_to_name(err));
-        free(list);
+        ESP_LOGW(TAG, "Stop display jobs failed: %s (output: %s)", esp_err_to_name(err), output);
         return;
     }
-
-    const char *launcher_tag = "name=" LAUNCHER_JOB_NAME;
-    const char *scanner_tag = "name=" SCANNER_JOB_NAME;
-    const char *line = list;
-    while (line && *line) {
-        const char *eol = strchr(line, '\n');
-        size_t line_len = eol ? (size_t)(eol - line) : strlen(line);
-
-        if (strstr(line, launcher_tag) || strstr(line, scanner_tag)) {
-            line = eol ? eol + 1 : line + line_len;
-            continue;
-        }
-
-        const char *sep = strstr(line, " | ");
-        if (sep && (size_t)(sep - line) < line_len) {
-            char job_id[64];
-            size_t id_len = (size_t)(sep - line);
-            if (id_len >= sizeof(job_id)) {
-                id_len = sizeof(job_id) - 1;
-            }
-            memcpy(job_id, line, id_len);
-            job_id[id_len] = '\0';
-
-            char output[64] = {0};
-            esp_err_t stop_err = cap_lua_stop_job(job_id, SCRIPT_STOP_WAIT_MS, output, sizeof(output));
-            if (stop_err != ESP_OK) {
-                ESP_LOGW(TAG, "Stop job %s: %s (output: %s)", job_id, esp_err_to_name(stop_err), output);
-            }
-        }
-
-        line = eol ? eol + 1 : line + line_len;
-    }
-
-    free(list);
+    ESP_LOGI(TAG, "%s", output);
 }
 
 static bool file_exists(const char *path)
