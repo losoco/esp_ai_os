@@ -1,5 +1,7 @@
 # ESP AI OS
 
+[中文版本](./README_CN.md)
+
 **ESP AI OS** is an embedded operating system layer built on Espressif chips, transforming the ESP-Claw AI agent framework into a complete application platform. It provides a touch-driven app launcher, display server, app lifecycle management, and a hardware abstraction layer — turning a bare-metal IoT device into a palm-sized AI computer.
 
 The flagship platform is **ESP32-P4** (dual-core RISC-V, 720×720 MIPI-DSI, 32 MB PSRAM), with support for ESP32-S3, ESP32-C5, and ESP32-S31.
