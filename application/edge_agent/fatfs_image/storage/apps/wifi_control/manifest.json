@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "wifi_control",
+  "name": "WiFi Control",
+  "version": "1.0.0",
+  "description": "Wi-Fi status dashboard and control placeholder.",
+  "entry": "main.lua",
+  "category": ["system", "network"],
+  "requires": {
+    "lua_modules": ["display", "board_manager", "delay", "system", "lcd_touch"],
+    "peripherals": ["display", "touch"]
+  },
+  "launch": {
+    "timeout_ms": 0,
+    "exclusive": "display",
+    "replace": true
+  }
+}
