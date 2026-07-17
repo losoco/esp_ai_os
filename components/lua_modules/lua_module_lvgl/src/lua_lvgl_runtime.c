@@ -458,8 +458,17 @@ static int lua_lvgl_init(lua_State *L)
 
     owner = display_arbiter_get_owner();
     if (owner == DISPLAY_ARBITER_OWNER_LUA) {
-        return luaL_error(L,
-                          "display is already owned by Lua; deinit display/lvgl before lvgl.init");
+        /* If the LVGL runtime is not initialized, the previous Lua owner
+         * exited uncleanly (e.g. force-stopped via stop_requested) without
+         * calling lvgl.deinit. Force-release the stale ownership. */
+        if (!s_lvgl.runtime_initialized) {
+            ESP_LOGW(TAG, "display is owned by Lua but no runtime is active; force-releasing stale ownership");
+            display_arbiter_force_release(DISPLAY_ARBITER_OWNER_LUA);
+            owner = display_arbiter_get_owner();
+        } else {
+            return luaL_error(L,
+                              "display is already owned by Lua; deinit display/lvgl before lvgl.init");
+        }
     }
     if (owner != DISPLAY_ARBITER_OWNER_NONE && owner != DISPLAY_ARBITER_OWNER_EMOTE) {
         return luaL_error(L,

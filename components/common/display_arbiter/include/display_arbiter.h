@@ -24,6 +24,7 @@ typedef void (*display_arbiter_owner_changed_cb_t)(display_arbiter_owner_t owner
 
 esp_err_t display_arbiter_acquire(display_arbiter_owner_t owner);
 esp_err_t display_arbiter_release(display_arbiter_owner_t owner);
+esp_err_t display_arbiter_force_release(display_arbiter_owner_t owner);
 bool display_arbiter_owner_is_valid(display_arbiter_owner_t owner);
 bool display_arbiter_owner_uses_emote_gfx(display_arbiter_owner_t owner);
 display_arbiter_owner_t display_arbiter_get_owner(void);

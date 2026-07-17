@@ -243,6 +243,45 @@ fail:
     return ret;
 }
 
+esp_err_t display_arbiter_force_release(display_arbiter_owner_t owner)
+{
+    esp_err_t ret = display_arbiter_lock();
+    display_arbiter_owner_t notify_owner = DISPLAY_ARBITER_OWNER_NONE;
+    bool owner_changed = false;
+
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    ESP_GOTO_ON_FALSE(display_arbiter_owner_is_valid(owner), ESP_ERR_INVALID_ARG, fail, TAG, "invalid owner");
+
+    if (owner == DISPLAY_ARBITER_OWNER_LUA) {
+        if (s_state.lua_depth > 0 && s_state.owner == DISPLAY_ARBITER_OWNER_LUA) {
+            s_state.lua_depth = 0;
+            display_arbiter_owner_t restore_owner =
+                display_arbiter_restore_owner_locked(DISPLAY_ARBITER_OWNER_EMOTE);
+            ESP_GOTO_ON_ERROR(display_arbiter_change_owner_locked(restore_owner), fail, TAG,
+                              "restore emote owner failed");
+            notify_owner = restore_owner;
+            owner_changed = true;
+        }
+    } else if (s_state.owner == owner) {
+        display_arbiter_owner_t restore_owner =
+            display_arbiter_restore_owner_locked(display_arbiter_release_fallback_owner(owner));
+        ESP_GOTO_ON_ERROR(display_arbiter_change_owner_locked(restore_owner), fail, TAG,
+                          "restore display owner failed");
+        notify_owner = restore_owner;
+        owner_changed = true;
+    }
+
+fail:
+    display_arbiter_unlock();
+    if (ret == ESP_OK && owner_changed) {
+        display_arbiter_notify_owner_changed(notify_owner);
+    }
+    return ret;
+}
+
 display_arbiter_owner_t display_arbiter_get_owner(void)
 {
     return s_state.owner;
