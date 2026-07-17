@@ -27,6 +27,7 @@
 #include <string.h>
 
 static const char *TAG = "lua_display";
+static lua_State *s_display_runtime_owner = NULL;
 
 /* -------------------------------------------------------------------------
  * Argument helpers (mirrors the reference implementation)
@@ -154,14 +155,20 @@ static void lua_display_reject_table_field(lua_State *L, int index, const char *
 
 static void lua_display_exit_cleanup(lua_State *L)
 {
-    (void)L;
+    if (s_display_runtime_owner != L) {
+        return;
+    }
 
-    /* The display is a shared hardware singleton owned by the board
-     * manager. Individual script exit MUST NOT release the display
-     * arbiter — another script (e.g. app launched via thread.start)
-     * may be the current LUA owner. Arbitrator lifecycle is managed
-     * by lua_lvgl_exit_cleanup (which checks runtime_owner == L)
-     * and explicit lvgl.deinit / display.deinit calls. */
+    esp_err_t destroy_err = display_hal_destroy();
+    esp_err_t release_err = display_arbiter_release(DISPLAY_ARBITER_OWNER_LUA);
+
+    s_display_runtime_owner = NULL;
+    if (destroy_err != ESP_OK) {
+        ESP_LOGW(TAG, "display exit cleanup destroy failed: %s", esp_err_to_name(destroy_err));
+    }
+    if (release_err != ESP_OK) {
+        ESP_LOGW(TAG, "display exit cleanup release failed: %s", esp_err_to_name(release_err));
+    }
 }
 
 static int lua_display_init(lua_State *L)
@@ -186,21 +193,24 @@ static int lua_display_init(lua_State *L)
         return luaL_error(L, "display init failed: %s", esp_err_to_name(err));
     }
 
+    s_display_runtime_owner = L;
     lua_pushboolean(L, 1);
     return 1;
 }
 
 static int lua_display_deinit(lua_State *L)
 {
-    (void)L;
-    esp_err_t err = display_hal_destroy();
-    if (err != ESP_OK) {
-        return luaL_error(L, "display deinit failed: %s", esp_err_to_name(err));
-    }
+    esp_err_t destroy_err = display_hal_destroy();
+    esp_err_t release_err = display_arbiter_release(DISPLAY_ARBITER_OWNER_LUA);
 
-    err = display_arbiter_release(DISPLAY_ARBITER_OWNER_LUA);
-    if (err != ESP_OK) {
-        return luaL_error(L, "display release failed: %s", esp_err_to_name(err));
+    if (s_display_runtime_owner == L) {
+        s_display_runtime_owner = NULL;
+    }
+    if (destroy_err != ESP_OK) {
+        return luaL_error(L, "display deinit failed: %s", esp_err_to_name(destroy_err));
+    }
+    if (release_err != ESP_OK) {
+        return luaL_error(L, "display release failed: %s", esp_err_to_name(release_err));
     }
 
     lua_pushboolean(L, 1);
