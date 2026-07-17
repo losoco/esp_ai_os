@@ -24,6 +24,9 @@
 #include "esp_board_manager_includes.h"
 #include "captive_dns.h"
 #include "cmd_wifi.h"
+#if CONFIG_IDF_TARGET_ESP32P4
+#include "slave_ota.h"
+#endif
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mdns.h"
@@ -372,6 +375,12 @@ void app_main(void)
     if (wifi_err != ESP_OK) {
         ESP_LOGE(TAG, "Wi-Fi start failed: %s", esp_err_to_name(wifi_err));
     } else {
+#if CONFIG_IDF_TARGET_ESP32P4
+        esp_err_t slave_ota_err = slave_ota_check_and_update();
+        if (slave_ota_err != ESP_OK && slave_ota_err != ESP_ERR_NOT_FOUND) {
+            ESP_LOGW(TAG, "C5 co-processor OTA check failed: %s", esp_err_to_name(slave_ota_err));
+        }
+#endif
         ESP_ERROR_CHECK(http_server_start());
 
         /* Initialize mDNS so the device is reachable as <hostname>.local */

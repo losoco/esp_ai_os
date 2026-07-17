@@ -36,6 +36,11 @@ dependencies:
   wifi_manager:
     path: ../../../components/common/wifi_manager
 
+  slave_ota:
+    path: ../../../components/slave_ota
+    rules:
+      - if: "target in [esp32p4]"
+
   esp_video:
     path: ../../../components/common/esp_video
     matches:
