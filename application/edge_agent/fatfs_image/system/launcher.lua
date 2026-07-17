@@ -8,6 +8,7 @@ local storage = require("storage")
 local json = require("json")
 local thread = require("thread")
 local delay = require("delay")
+local lcd_touch = require("lcd_touch")
 
 local SYSTEM_APPS = "/system/apps"
 local DATA_ROOT = storage.get_root_dir()
@@ -40,6 +41,8 @@ local settings = {
 local pending_launch
 local should_exit
 local last_error
+local swipe_start_x
+local swipe_start_y
 
 local COLORS = {
     bg = "#f0f4f8",
@@ -301,6 +304,10 @@ local function draw_app_icon(app, x, y, w, h)
     text(b, app.name, 0, 0, w, h, 16, COLORS.text, "center")
 end
 
+local function desktop_page_count()
+    return math.max(1, (#apps + APP_PAGE_SIZE - 1) // APP_PAGE_SIZE)
+end
+
 local function draw_desktop()
     draw_statusbar("Launcher")
     local start = (current_page - 1) * APP_PAGE_SIZE + 1
@@ -316,7 +323,7 @@ local function draw_desktop()
         end
     end
 
-    local page_count = math.max(1, (#apps + APP_PAGE_SIZE - 1) // APP_PAGE_SIZE)
+    local page_count = desktop_page_count()
     button(screen, "<", 20, H - 86, 82, 58, COLORS.panel, function()
         if current_page > 1 then current_page = current_page - 1; render() end
     end)
@@ -419,6 +426,37 @@ local function draw_error()
     end)
 end
 
+local function handle_home_swipe()
+    if current_view ~= "desktop" or not touch_handle then return end
+
+    local ok, t = pcall(lcd_touch.poll, touch_handle)
+    if not ok or type(t) ~= "table" then return end
+
+    if t.just_pressed then
+        swipe_start_x = t.x
+        swipe_start_y = t.y
+    elseif t.just_released and swipe_start_x then
+        local dx = t.x - swipe_start_x
+        local dy = t.y - swipe_start_y
+        local abs_dx = math.abs(dx)
+        local abs_dy = math.abs(dy)
+        local threshold = 80
+        local page_count = desktop_page_count()
+
+        if abs_dx > threshold and abs_dx > abs_dy * 2 then
+            if dx < 0 and current_page < page_count then
+                current_page = current_page + 1
+                render()
+            elseif dx > 0 and current_page > 1 then
+                current_page = current_page - 1
+                render()
+            end
+        end
+        swipe_start_x = nil
+        swipe_start_y = nil
+    end
+end
+
 render = function()
     clear_screen()
     if current_view == "drawer" then draw_drawer()
@@ -453,6 +491,7 @@ local function main()
             print("launcher process_events error: " .. tostring(err))
             break
         end
+        handle_home_swipe()
     end
 
     deinit_lvgl()
