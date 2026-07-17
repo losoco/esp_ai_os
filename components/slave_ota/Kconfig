@@ -1,0 +1,16 @@
+menu "ESP32-C5 Slave OTA"
+
+config APP_SLAVE_OTA_MOCK
+    bool "Mock ESP32-C5 slave OTA"
+    default n
+    help
+      Exercise the ESP32-C5 slave OTA flow without calling esp_hosted_slave_ota_*.
+      Disable before shipping.
+
+config APP_SLAVE_OTA_MOCK_DURATION_MS
+    int "Total mock duration (ms)"
+    depends on APP_SLAVE_OTA_MOCK
+    default 10000
+    range 2000 60000
+
+endmenu
