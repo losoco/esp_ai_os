@@ -401,6 +401,13 @@ local function draw_settings()
         current_page = 1
         render()
     end)
+    button(screen, "Reboot", 34, 364, W - 68, 58, COLORS.danger, function()
+        local cap = require("capability")
+        local ok, out = cap.call("restart_device")
+        if not ok then
+            print("reboot failed: " .. tostring(out))
+        end
+    end)
 end
 
 local function draw_error()
