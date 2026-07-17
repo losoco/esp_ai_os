@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "../../../.."
+		},
+		{
+			"path": "../../../../../esp32p4/MetalioClaw4"
 		}
 	],
 	"settings": {
